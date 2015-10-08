@@ -1,0 +1,83 @@
+import atexit
+from pyVim.connect import SmartConnect, Disconnect
+from pyVmomi import vim
+from pyvmomi_tools.cli import cursor
+
+class VMware(object):
+
+    def __init__(self, server, port, user, password):
+        try:
+            self.session = SmartConnect(host=server, user=user, pwd=password, port=int(port))
+        except IOError as e:
+            raise VMwareException('Unable to create vCenter session {}:{}@{}'.format(server, port, user))
+
+        atexit.register(Disconnect, self.session)
+        self.content = self.session.RetrieveContent()
+
+    def get_object(self, types, name):
+        type_list = types if isinstance(types, list) else [types]
+        container = self.content.viewManager.CreateContainerView(self.content.rootFolder, type_list, True)
+        try:
+            return next((c for c in container.view if c.name == name))
+        except StopIteration:
+            return None
+
+    def clone(self, template_name, vm_name, cpus, memory, datacenter_name, cluster_name, datastore_name, ip, domain, dns, network_name, subnet, gateway):
+        datacenter = self.get_object(vim.Datacenter, datacenter_name)
+        cluster = self.get_object(vim.ClusterComputeResource, cluster_name)
+        datastore = self.get_object(vim.Datastore, datastore_name)
+        template_vm = self.get_object(vim.VirtualMachine, template_name)
+        network = self.get_object(vim.Network, network_name)
+        resource_pool = cluster.resourcePool
+        destfolder = datacenter.vmFolder
+        relospec = vim.vm.RelocateSpec()
+        relospec.datastore = datastore
+        relospec.pool = resource_pool
+        nic = vim.vm.device.VirtualDeviceSpec()
+        nic.operation = vim.vm.device.VirtualDeviceSpec.Operation.edit
+        nic.device = vim.vm.device.VirtualVmxnet3()
+        nic.device.wakeOnLanEnabled = True
+        nic.device.addressType = 'assigned'
+        nic.device.key = 4000
+        nic.device.deviceInfo = vim.Description()
+        nic.device.deviceInfo.label = 'Network Adapter 1'
+        nic.device.deviceInfo.summary = network_name
+        nic.device.backing = vim.vm.device.VirtualEthernetCard.NetworkBackingInfo()
+        nic.device.backing.network = network
+        nic.device.backing.deviceName = network_name
+        nic.device.backing.useAutoDetect = False
+        nic.device.connectable = vim.vm.device.VirtualDevice.ConnectInfo()
+        nic.device.connectable.startConnected = True
+        nic.device.connectable.allowGuestControl = True
+        vmconf = vim.vm.ConfigSpec()
+        vmconf.numCPUs = cpus
+        vmconf.memoryMB = memory
+        vmconf.cpuHotAddEnabled = True
+        vmconf.memoryHotAddEnabled = True
+        vmconf.deviceChange = [nic]
+        guest_map = vim.vm.customization.AdapterMapping()
+        guest_map.adapter = vim.vm.customization.IPSettings()
+        guest_map.adapter.ip = vim.vm.customization.FixedIp()
+        guest_map.adapter.ip.ipAddress = ip
+        guest_map.adapter.subnetMask = subnet
+        guest_map.adapter.gateway = gateway
+        guest_map.adapter.dnsDomain = domain
+        globalip = vim.vm.customization.GlobalIPSettings()
+        globalip.dnsServerList = dns
+        globalip.dnsSuffixList = domain
+        ident = vim.vm.customization.LinuxPrep()
+        ident.domain = domain
+        ident.hostName = vim.vm.customization.FixedName()
+        ident.hostName.name = vm_name
+        customspec = vim.vm.customization.Specification()
+        customspec.nicSettingMap = [guest_map]
+        customspec.globalIPSettings = globalip
+        customspec.identity = ident
+        clonespec = vim.vm.CloneSpec()
+        clonespec.location = relospec
+        clonespec.config = vmconf
+        clonespec.customization = customspec
+        clonespec.powerOn = True
+        clonespec.template = False
+        task = template_vm.Clone(folder=destfolder, name=vm_name, spec=clonespec)
+        task.wait()

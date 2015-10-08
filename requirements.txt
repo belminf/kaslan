@@ -1,0 +1,4 @@
+netaddr
+pyvmomi
+PyYAML
+argparse

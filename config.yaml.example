@@ -1,0 +1,18 @@
+---
+vcenter_host: vcenter.example.com
+vcenter_post: 443
+defaults:
+  cpus: 1
+  memory_mb: 2048
+  datacenter: VMWare
+  cluster: EastBldg
+  domain: example.com
+networks:
+  192.168.3.0/24:
+    gateway: 192.168.3.1
+    subnet: 255.255.255.0
+    dns: 8.8.8.8
+    cluster_networks:
+      EastBldg: VLAN_3
+templates:
+  RHEL7: RHEL 7.1
