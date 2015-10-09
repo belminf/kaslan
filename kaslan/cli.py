@@ -23,9 +23,9 @@ def main():
     # Clone: arguments
     parser_clone_args = parser_clone.add_argument_group('cloning arguments')
     parser_clone_args.add_argument('template', help='template')
-    parser_clone_args.add_argument('datastore', dest='datastore_name', help='datastore')
+    parser_clone_args.add_argument('datastore_name', help='datastore')
     parser_clone_args.add_argument('ip', help='IP address')
-    parser_clone_args.add_argument('vm', dest='vm_name', help='name of new VM')
+    parser_clone_args.add_argument('vm_name', help='name of new VM')
 
     # Clone: options
     parser_clone_opts = parser_clone.add_argument_group('cloning optional overrides')
@@ -56,7 +56,7 @@ def clone(args, config):
 
     # Get network in the cluster
     try:
-        cluster_network = net_settings['cluster_networks'][args.cluster]
+        cluster_network = net_settings['cluster_networks'][args.cluster_name]
     except KeyError:
         raise CLIException('Cluster {} not configured for network {} in config.yaml'.format(args.cluster, args.ip))
 
