@@ -5,11 +5,11 @@ from pyvmomi_tools.cli import cursor
 
 class VMware(object):
 
-    def __init__(self, server, port, user, password):
+    def __init__(self, host, port, user, password):
         try:
-            self.session = SmartConnect(host=server, user=user, pwd=password, port=int(port))
+            self.session = SmartConnect(host=host, user=user, pwd=password, port=int(port))
         except IOError as e:
-            raise VMwareException('Unable to create vCenter session {}:{}@{}'.format(server, port, user))
+            raise VMwareException('Unable to create vCenter session {}:{}@{}'.format(host, port, user))
 
         atexit.register(Disconnect, self.session)
         self.content = self.session.RetrieveContent()
@@ -37,6 +37,7 @@ class VMware(object):
         network_name,
         subnet,
         gateway,
+        *args,
         **kwargs
     ):
         # Find objects
@@ -91,7 +92,7 @@ class VMware(object):
         nic_map.adapter.dnsDomain = domain
         
         # Global networking
-        global_ip = vim.vm.customization.global_ipSettings()
+        global_ip = vim.vm.customization.GlobalIPSettings()
         global_ip.dnsServerList = dns
         global_ip.dnsSuffixList = domain
 
@@ -104,7 +105,7 @@ class VMware(object):
         # Customization specs
         customspec = vim.vm.customization.Specification()
         customspec.nicSettingMap = [nic_map]
-        customspec.global_ipSettings = global_ip
+        customspec.globalIPSettings = global_ip
         customspec.identity = ident
 
         # Clone specs
