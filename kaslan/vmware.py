@@ -22,17 +22,40 @@ class VMware(object):
         except StopIteration:
             return None
 
-    def clone(self, template_name, vm_name, cpus, memory, datacenter_name, cluster_name, datastore_name, ip, domain, dns, network_name, subnet, gateway):
+    def clone(
+        self,
+        template_name,
+        vm_name,
+        cpus,
+        memory,
+        datacenter_name,
+        cluster_name,
+        datastore_name,
+        ip,
+        domain,
+        dns,
+        network_name,
+        subnet,
+        gateway,
+        **kwargs
+    ):
+        # Find objects
         datacenter = self.get_object(vim.Datacenter, datacenter_name)
         cluster = self.get_object(vim.ClusterComputeResource, cluster_name)
         datastore = self.get_object(vim.Datastore, datastore_name)
         template_vm = self.get_object(vim.VirtualMachine, template_name)
         network = self.get_object(vim.Network, network_name)
+
+        # Default objects
         resource_pool = cluster.resourcePool
         destfolder = datacenter.vmFolder
+
+        # Relocation specs
         relospec = vim.vm.RelocateSpec()
         relospec.datastore = datastore
         relospec.pool = resource_pool
+
+        # Modify NIC card
         nic = vim.vm.device.VirtualDeviceSpec()
         nic.operation = vim.vm.device.VirtualDeviceSpec.Operation.edit
         nic.device = vim.vm.device.VirtualVmxnet3()
@@ -49,35 +72,49 @@ class VMware(object):
         nic.device.connectable = vim.vm.device.VirtualDevice.ConnectInfo()
         nic.device.connectable.startConnected = True
         nic.device.connectable.allowGuestControl = True
+
+        # Configuration specs
         vmconf = vim.vm.ConfigSpec()
         vmconf.numCPUs = cpus
         vmconf.memoryMB = memory
         vmconf.cpuHotAddEnabled = True
         vmconf.memoryHotAddEnabled = True
         vmconf.deviceChange = [nic]
-        guest_map = vim.vm.customization.AdapterMapping()
-        guest_map.adapter = vim.vm.customization.IPSettings()
-        guest_map.adapter.ip = vim.vm.customization.FixedIp()
-        guest_map.adapter.ip.ipAddress = ip
-        guest_map.adapter.subnetMask = subnet
-        guest_map.adapter.gateway = gateway
-        guest_map.adapter.dnsDomain = domain
-        globalip = vim.vm.customization.GlobalIPSettings()
-        globalip.dnsServerList = dns
-        globalip.dnsSuffixList = domain
+
+        # NIC mapping
+        nic_map = vim.vm.customization.AdapterMapping()
+        nic_map.adapter = vim.vm.customization.IPSettings()
+        nic_map.adapter.ip = vim.vm.customization.FixedIp()
+        nic_map.adapter.ip.ipAddress = ip
+        nic_map.adapter.subnetMask = subnet
+        nic_map.adapter.gateway = gateway
+        nic_map.adapter.dnsDomain = domain
+        
+        # Global networking
+        global_ip = vim.vm.customization.global_ipSettings()
+        global_ip.dnsServerList = dns
+        global_ip.dnsSuffixList = domain
+
+        # Identity settings
         ident = vim.vm.customization.LinuxPrep()
         ident.domain = domain
         ident.hostName = vim.vm.customization.FixedName()
         ident.hostName.name = vm_name
+
+        # Customization specs
         customspec = vim.vm.customization.Specification()
-        customspec.nicSettingMap = [guest_map]
-        customspec.globalIPSettings = globalip
+        customspec.nicSettingMap = [nic_map]
+        customspec.global_ipSettings = global_ip
         customspec.identity = ident
+
+        # Clone specs
         clonespec = vim.vm.CloneSpec()
         clonespec.location = relospec
         clonespec.config = vmconf
         clonespec.customization = customspec
         clonespec.powerOn = True
         clonespec.template = False
+
+        # Create task
         task = template_vm.Clone(folder=destfolder, name=vm_name, spec=clonespec)
         task.wait()
