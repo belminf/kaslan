@@ -1,4 +1,5 @@
 import atexit
+import sys
 from pyVim.connect import SmartConnect, Disconnect
 from pyVmomi import vim
 from pyvmomi_tools.cli import cursor
@@ -111,7 +112,7 @@ class VMware(object):
         ident = vim.vm.customization.LinuxPrep()
         ident.domain = domain
         ident.hostName = vim.vm.customization.FixedName()
-        ident.hostName.name = '{}.{}'.format(vm_name, domain)
+        ident.hostName.name = vm_name
 
         # Customization specs
         customspec = vim.vm.customization.Specification()
@@ -129,4 +130,9 @@ class VMware(object):
 
         # Create task
         task = template_vm.Clone(folder=destfolder, name=vm_name, spec=clonespec)
-        task.wait()
+        task.wait(
+            queued=lambda t: sys.stdout.write("Queued...\n"),
+            running=lambda t: sys.stdout.write("Running...\n"),
+            success=lambda t: sys.stdout.write("Success!\n"),
+            error=lambda t: sys.stdout.write('Error!\n')
+        )
