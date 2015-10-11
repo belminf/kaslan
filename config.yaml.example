@@ -7,6 +7,7 @@ defaults:
   datacenter: VMWare
   cluster: EastBldg
   domain: example.com
+  folder_path: Linux/Inbox
 networks:
   192.168.3.0/24:
     gateway: 192.168.3.1

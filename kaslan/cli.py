@@ -31,6 +31,7 @@ def main():
     parser_clone_opts = parser_clone.add_argument_group('cloning optional overrides')
     parser_clone_opts.add_argument('--datacenter', dest='datacenter_name',  help='datacenter', default=config['defaults']['datacenter'])
     parser_clone_opts.add_argument('--cluster', dest='cluster_name', help='cluster', default=config['defaults']['cluster'])
+    parser_clone_opts.add_argument('--folder', dest='folder_path',  help='folder path, with / delimiter', default=config['defaults'].get('folder'))
     parser_clone_opts.add_argument('--ip', help='IP address for VM, defaults to DNS lookup of vm_name', default=None)
     parser_clone_opts.add_argument('--cpus', '-c', metavar='COUNT', help='CPU count for VM', default=config['defaults']['cpus'])
     parser_clone_opts.add_argument('--memory', '-m', metavar='MB', help='memory for VM', default=config['defaults']['memory_mb'])

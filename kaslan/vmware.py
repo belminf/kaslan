@@ -3,6 +3,7 @@ import sys
 from pyVim.connect import SmartConnect, Disconnect
 from pyVmomi import vim
 from pyvmomi_tools.cli import cursor
+from kaslan.exceptions import VMwareException
 
 class VMware(object):
 
@@ -15,14 +16,22 @@ class VMware(object):
         atexit.register(Disconnect, self.session)
         self.content = self.session.RetrieveContent()
 
-    def get_object(self, types, name):
+    def get_object(self, types, name, root=None):
+        if not root:
+            root = self.content.rootFolder
         type_list = types if isinstance(types, list) else [types]
-        container = self.content.viewManager.CreateContainerView(self.content.rootFolder, type_list, True)
+        container = self.content.viewManager.CreateContainerView(root, type_list, True)
         try:
             return next((c for c in container.view if c.name == name))
         except StopIteration:
-            return None
+            raise VMwareException('Unable to find {} ({})'.format(name, types))
 
+    def get_folder(self, path):
+        current_folder = None
+        for f in path.split('/'):
+            current_folder = self.get_object(vim.Folder, f, root=current_folder)
+        return current_folder
+    
     def clone(
         self,
         template_name,
@@ -39,6 +48,7 @@ class VMware(object):
         portgroup,
         subnet,
         gateway,
+        folder_path=None,
         *args,
         **kwargs
     ):
@@ -47,14 +57,21 @@ class VMware(object):
         cluster = self.get_object(vim.ClusterComputeResource, cluster_name)
         datastore = self.get_object(vim.Datastore, datastore_name)
         template_vm = self.get_object(vim.VirtualMachine, template_name)
+
+        # DVS portgroup do things a tad different
         if not portgroup:
             network = self.get_object(vim.Network, network_name)
         else:
             network = self.get_object(vim.dvs.DistributedVirtualPortgroup, network_name)
 
+        # Get folder, defaults to datacenter
+        if folder_path:
+            folder = self.get_folder(folder_path)
+        else:
+            folder = datacenter.vmFolder
+
         # Default objects
         resource_pool = cluster.resourcePool
-        destfolder = datacenter.vmFolder
 
         # Relocation specs
         relospec = vim.vm.RelocateSpec()
@@ -129,13 +146,13 @@ class VMware(object):
         clonespec.template = False
 
         # Create task
-        task = template_vm.Clone(folder=destfolder, name=vm_name, spec=clonespec)
+        task = template_vm.Clone(folder=folder, name=vm_name, spec=clonespec)
         try:
             task.wait(
                 queued=lambda t: sys.stdout.write("Queued...\n"),
                 running=lambda t: sys.stdout.write("Running...\n"),
-                success=lambda t: sys.stdout.write("Success!\n"),
-                error=lambda t: sys.stdout.write('Error!\n')
+                success=lambda t: sys.stdout.write("\nVM '{}' cloned in folder '{}'.\n".format(vm_name, folder_path)),
+                error=lambda t: sys.stdout.write('\nError!\n')
             )
         except Exception as e:
             print e.msg
