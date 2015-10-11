@@ -111,7 +111,7 @@ class VMware(object):
         ident = vim.vm.customization.LinuxPrep()
         ident.domain = domain
         ident.hostName = vim.vm.customization.FixedName()
-        ident.hostName.name = vm_name
+        ident.hostName.name = '{}.{}'.format(vm_name, domain)
 
         # Customization specs
         customspec = vim.vm.customization.Specification()
