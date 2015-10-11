@@ -66,6 +66,10 @@ def clone(args, config):
     except KeyError:
         raise CLIException('Template {} is not configured in config.yaml'.format(args.template))
 
+    # Normalize some arguments
+    args.vm_name = args.vm_name.lower()
+    args.domain = args.domain.lower()
+
     # Create API object
     vm = VMware(
         host=args.vcenter_host,
