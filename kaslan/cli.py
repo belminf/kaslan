@@ -5,6 +5,7 @@ from netaddr import IPNetwork, IPAddress
 from argparse import ArgumentParser
 import getpass
 import yaml
+import socket
 
 
 def main():
@@ -24,13 +25,13 @@ def main():
     parser_clone_args = parser_clone.add_argument_group('cloning arguments')
     parser_clone_args.add_argument('template', help='template')
     parser_clone_args.add_argument('datastore_name', help='datastore')
-    parser_clone_args.add_argument('ip', help='IP address')
     parser_clone_args.add_argument('vm_name', help='name of new VM')
 
     # Clone: options
     parser_clone_opts = parser_clone.add_argument_group('cloning optional overrides')
     parser_clone_opts.add_argument('--datacenter', dest='datacenter_name',  help='datacenter', default=config['defaults']['datacenter'])
     parser_clone_opts.add_argument('--cluster', dest='cluster_name', help='cluster', default=config['defaults']['cluster'])
+    parser_clone_opts.add_argument('--ip', help='IP address for VM, defaults to DNS lookup of vm_name', default=None)
     parser_clone_opts.add_argument('--cpus', '-c', metavar='COUNT', help='CPU count for VM', default=config['defaults']['cpus'])
     parser_clone_opts.add_argument('--memory', '-m', metavar='MB', help='memory for VM', default=config['defaults']['memory_mb'])
     parser_clone_opts.add_argument('--domain', '-d', help='domain', default=config['defaults']['domain'])
@@ -47,6 +48,14 @@ def main():
 
 
 def clone(args, config):
+
+    # Normalize some arguments
+    args.vm_name = args.vm_name.lower()
+    args.domain = args.domain.lower()
+
+    # Get IP address from name if not provided
+    if not args.ip:
+        args.ip = repr(socket.gethostbyname('{}.{}'.format(args.vm_name,args.domain)))[1:-1]
 
     # Get network settings
     try:
@@ -66,10 +75,6 @@ def clone(args, config):
     except KeyError:
         raise CLIException('Template {} is not configured in config.yaml'.format(args.template))
 
-    # Normalize some arguments
-    args.vm_name = args.vm_name.lower()
-    args.domain = args.domain.lower()
-
     # Create API object
     vm = VMware(
         host=args.vcenter_host,
@@ -82,4 +87,3 @@ def clone(args, config):
         template_name=template_name,
         **dict(vars(args).items() + net_settings.items() + cluster_net_settings.items())
     )
-    #     args.vm, args.cpus, args.memory, args.datacenter, args.cluster, args.datastore, args.ip, args.domain, net_settings['dns'], cluster_network, net_settings['subnet'], net_settings['gateway'])
