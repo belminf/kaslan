@@ -130,9 +130,13 @@ class VMware(object):
 
         # Create task
         task = template_vm.Clone(folder=destfolder, name=vm_name, spec=clonespec)
-        task.wait(
-            queued=lambda t: sys.stdout.write("Queued...\n"),
-            running=lambda t: sys.stdout.write("Running...\n"),
-            success=lambda t: sys.stdout.write("Success!\n"),
-            error=lambda t: sys.stdout.write('Error!\n')
-        )
+        try:
+            task.wait(
+                queued=lambda t: sys.stdout.write("Queued...\n"),
+                running=lambda t: sys.stdout.write("Running...\n"),
+                success=lambda t: sys.stdout.write("Success!\n"),
+                error=lambda t: sys.stdout.write('Error!\n')
+            )
+        except Exception as e:
+            print e.msg
+
