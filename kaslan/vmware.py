@@ -35,6 +35,7 @@ class VMware(object):
         domain,
         dns,
         network_name,
+        portgroup,
         subnet,
         gateway,
         *args,
@@ -45,7 +46,10 @@ class VMware(object):
         cluster = self.get_object(vim.ClusterComputeResource, cluster_name)
         datastore = self.get_object(vim.Datastore, datastore_name)
         template_vm = self.get_object(vim.VirtualMachine, template_name)
-        network = self.get_object(vim.Network, network_name)
+        if not portgroup:
+            network = self.get_object(vim.Network, network_name)
+        else:
+            network = self.get_object(vim.dvs.DistributedVirtualPortgroup, network_name)
 
         # Default objects
         resource_pool = cluster.resourcePool
@@ -66,10 +70,17 @@ class VMware(object):
         nic.device.deviceInfo = vim.Description()
         nic.device.deviceInfo.label = 'Network Adapter 1'
         nic.device.deviceInfo.summary = network_name
-        nic.device.backing = vim.vm.device.VirtualEthernetCard.NetworkBackingInfo()
-        nic.device.backing.network = network
-        nic.device.backing.deviceName = network_name
-        nic.device.backing.useAutoDetect = False
+        if not portgroup:
+            nic.device.backing = vim.vm.device.VirtualEthernetCard.NetworkBackingInfo()
+            nic.device.backing.network = network
+            nic.device.backing.deviceName = network_name
+            nic.device.backing.useAutoDetect = False
+        else:
+            portgroup_connection = vim.dvs.PortConnection()
+            portgroup_connection.portgroupKey = network.key
+            portgroup_connection.switchUuid = network.config.distributedVirtualSwitch.uuid
+            nic.device.backing = vim.vm.device.VirtualEthernetCard.DistributedVirtualPortBackingInfo()
+            nic.device.backing.port = portgroup_connection
         nic.device.connectable = vim.vm.device.VirtualDevice.ConnectInfo()
         nic.device.connectable.startConnected = True
         nic.device.connectable.allowGuestControl = True

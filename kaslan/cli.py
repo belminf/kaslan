@@ -56,7 +56,7 @@ def clone(args, config):
 
     # Get network in the cluster
     try:
-        cluster_network = net_settings['cluster_networks'][args.cluster_name]
+        cluster_net_settings = net_settings['cluster_networks'][args.cluster_name]
     except KeyError:
         raise CLIException('Cluster {} not configured for network {} in config.yaml'.format(args.cluster, args.ip))
 
@@ -76,7 +76,6 @@ def clone(args, config):
     # Perform the clone
     vm.clone(
         template_name=template_name,
-        network_name=cluster_network,
-        **dict(vars(args).items() + net_settings.items())
+        **dict(vars(args).items() + net_settings.items() + cluster_net_settings.items())
     )
     #     args.vm, args.cpus, args.memory, args.datacenter, args.cluster, args.datastore, args.ip, args.domain, net_settings['dns'], cluster_network, net_settings['subnet'], net_settings['gateway'])

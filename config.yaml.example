@@ -13,6 +13,8 @@ networks:
     subnet: 255.255.255.0
     dns: 8.8.8.8
     cluster_networks:
-      EastBldg: VLAN_3
+      EastBldg:
+        network_name: VLAN_3
+        portgroup: true
 templates:
   RHEL7: RHEL 7.1
