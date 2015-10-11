@@ -1,9 +1,14 @@
 import atexit
 import sys
+
 from pyVim.connect import SmartConnect, Disconnect
 from pyVmomi import vim
 from pyvmomi_tools.cli import cursor
 from kaslan.exceptions import VMwareException
+
+# Turn off SSL warning
+import requests
+requests.packages.urllib3.disable_warnings()
 
 class VMware(object):
 
