@@ -6,6 +6,7 @@ from argparse import ArgumentParser
 import getpass
 import yaml
 import socket
+import os
 
 
 def main():
@@ -36,6 +37,7 @@ def main():
     parser_clone_opts.add_argument('--cpus', '-c', metavar='COUNT', help='CPU count for VM', default=config['defaults']['cpus'])
     parser_clone_opts.add_argument('--memory', '-m', metavar='MB', help='memory for VM', default=config['defaults']['memory_mb'])
     parser_clone_opts.add_argument('--domain', '-d', help='domain', default=config['defaults']['domain'])
+    parser_clone_opts.add_argument('--force', help='ignore pre-checks like ping test', default=False)
 
     # Clone: vcenter?
     parser_vcenter = parser_clone.add_argument_group('vCenter overrides')
@@ -57,6 +59,10 @@ def clone(args, config):
     # Get IP address from name if not provided
     if not args.ip:
         args.ip = repr(socket.gethostbyname('{}.{}'.format(args.vm_name,args.domain)))[1:-1]
+
+    # Make sure IP address isn't used
+    if not args.force and os.system('ping -c1 {}'.format(args.ip)) == 0:
+        raise CLIException('IP address {} is responding to ping, canceling'.format(args.ip))
 
     # Get network settings
     try:
