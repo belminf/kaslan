@@ -16,6 +16,7 @@ def main():
 
     # Create main parser
     parser = ArgumentParser(description=__description__)
+    parser.add_argument('--vcenter-user', '-u', help='vCenter user', default=getpass.getuser())
     subparsers = parser.add_subparsers()
 
     # Clone parser
@@ -38,12 +39,6 @@ def main():
     parser_clone_opts.add_argument('--memory', '-m', metavar='MB', help='memory for VM', default=config['defaults']['memory_mb'])
     parser_clone_opts.add_argument('--domain', '-d', help='domain', default=config['defaults']['domain'])
     parser_clone_opts.add_argument('--force', help='ignore pre-checks like ping test', default=False)
-
-    # Clone: vcenter?
-    parser_vcenter = parser_clone.add_argument_group('vCenter overrides')
-    parser_vcenter.add_argument('--vcenter-user', '-u', help='vCenter user', default=getpass.getuser())
-    parser_vcenter.add_argument('--vcenter-host', help='hostname of vCenter server', default=config['vcenter_host'])
-    parser_vcenter.add_argument('--vcenter-port', help='port for the vCenter server', default=config['vcenter_port'])
 
     # Parse arguments
     args = parser.parse_args()
