@@ -1,11 +1,9 @@
 #kaslan
 pyVmomi based CLI for common VMware tasks.
 
-
-##Requirements
-* Python 2.7+
-
 ##Install
+### Requires
+### Setup
  pip install -r requirements.txt
 
 ##Commands
