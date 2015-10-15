@@ -79,7 +79,7 @@ def clone(args, config):
         args.ip = repr(socket.gethostbyname('{}.{}'.format(args.vm_name,args.domain)))[1:-1]
 
     # Make sure IP address isn't used
-    if not args.force and os.system('ping -c1 {}'.format(args.ip)) == 0:
+    if not args.force and os.system('ping -c1 {} > /dev/null 2>&1'.format(args.ip)) == 0:
         raise CLIException('IP address {} is responding to ping, canceling'.format(args.ip))
 
     # Get network settings
@@ -102,10 +102,10 @@ def clone(args, config):
 
     # Create API object
     vm = VMware(
-        host=args.vcenter_host,
-        port=args.vcenter_port,
+        host=config['vcenter_host'],
+        port=config['vcenter_port'],
         user=args.vcenter_user,
-        password=getpass.getpass('{}@{}: '.format(args.vcenter_user, args.vcenter_host)))
+        password=getpass.getpass('{}@{}: '.format(args.vcenter_user, config['vcenter_host'])))
 
     # Perform the clone
     vm.clone(

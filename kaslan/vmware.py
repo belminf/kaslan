@@ -43,19 +43,19 @@ class VMware(object):
             task.wait(
                 queued=lambda t: sys.stdout.write("Queued...\n"),
                 running=lambda t: sys.stdout.write("Running...\n"),
-                success=lambda t: sys.stdout.write(success_msg),
+                success=lambda t: sys.stdout.write("\n{}\n".format(success_msg)),
                 error=lambda t: sys.stdout.write('\nError!\n')
             )
         except Exception as e:
             print e.msg
 
     def get_vm_props(self, vm_name, propfilter):
-    
+        
         # Starting point
         obj_spec = vmodl.query.PropertyCollector.ObjectSpec()
         obj_spec.obj = self.content.viewManager.CreateContainerView(self.content.rootFolder, [vim.VirtualMachine,], True)
         obj_spec.skip = True
- 
+        
         # Define path for search
         traversal_spec = vmodl.query.PropertyCollector.TraversalSpec()
         traversal_spec.name = 'traversing'
@@ -63,7 +63,7 @@ class VMware(object):
         traversal_spec.skip = False
         traversal_spec.type = obj_spec.obj.__class__
         obj_spec.selectSet = [traversal_spec]
-    
+        
         # Identify the properties to the retrieved
         property_spec = vmodl.query.PropertyCollector.PropertySpec()
         property_spec.type = vim.VirtualMachine
@@ -73,7 +73,7 @@ class VMware(object):
         filter_spec = vmodl.query.PropertyCollector.FilterSpec()
         filter_spec.objectSet = [obj_spec]
         filter_spec.propSet = [property_spec]
-    
+        
         # Retrieve properties
         collector = self.session.content.propertyCollector
         props = collector.RetrieveContents([filter_spec])
@@ -90,7 +90,7 @@ class VMware(object):
             # Return this one with obj
             properties['obj'] = obj.obj
             return properties
-   
+            
     def get_memory(self, vm_name, alternate=False):
         vm = self.get_vm_props(vm_name, ['config.hardware.memoryMB',])
         print(
@@ -215,13 +215,5 @@ class VMware(object):
 
         # Create task
         task = template_vm.Clone(folder=folder, name=vm_name, spec=clonespec)
-        try:
-            task.wait(
-                queued=lambda t: sys.stdout.write("Queued...\n"),
-                running=lambda t: sys.stdout.write("Running...\n"),
-                success=lambda t: sys.stdout.write("\nVM '{}' cloned in folder '{}'.\n".format(vm_name, folder_path)),
-                error=lambda t: sys.stdout.write('\nError!\n')
-            )
-        except Exception as e:
-            print e.msg
+        self.start_task(task,'VM "{}" cloned in folder "{}"'.format(vm_name, folder_path))
 
