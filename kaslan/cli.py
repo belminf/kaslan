@@ -40,10 +40,33 @@ def main():
     parser_clone_opts.add_argument('--domain', '-d', help='domain', default=config['defaults']['domain'])
     parser_clone_opts.add_argument('--force', help='ignore pre-checks like ping test', default=False)
 
+    # Memory parser
+    parser_memory = subparsers.add_parser('memory')
+    parser_memory.set_defaults(func=memory)
+
+    # Memory: arguments
+    parser_memory_args = parser_memory.add_argument_group('memory arguments')
+    parser_memory_args.add_argument('vm_name', help='name of VM')
+
     # Parse arguments
     args = parser.parse_args()
     args.func(args, config)
 
+def memory(args, config):
+
+    # Normalize
+    args.vm_name = args.vm_name.lower()
+
+    # Create API object
+    vmware = VMware(
+        host=config['vcenter_host'],
+        port=config['vcenter_port'],
+        user=getpass.getuser(),
+        password=getpass.getpass('{}@{}: '.format(getpass.getuser(), config['vcenter_host']))
+    )
+
+    # Get memory
+    vmware.get_memory(args.vm_name, True)
 
 def clone(args, config):
 

@@ -2,7 +2,7 @@ import atexit
 import sys
 
 from pyVim.connect import SmartConnect, Disconnect
-from pyVmomi import vim
+from pyVmomi import vim, vmodl
 from pyvmomi_tools.cli import cursor
 from kaslan.exceptions import VMwareException
 
@@ -26,6 +26,7 @@ class VMware(object):
             root = self.content.rootFolder
         type_list = types if isinstance(types, list) else [types]
         container = self.content.viewManager.CreateContainerView(root, type_list, True)
+
         try:
             return next((c for c in container.view if c.name == name))
         except StopIteration:
@@ -36,7 +37,69 @@ class VMware(object):
         for f in path.split('/'):
             current_folder = self.get_object(vim.Folder, f, root=current_folder)
         return current_folder
+
+    def start_task(self, task, success_msg):
+        try:
+            task.wait(
+                queued=lambda t: sys.stdout.write("Queued...\n"),
+                running=lambda t: sys.stdout.write("Running...\n"),
+                success=lambda t: sys.stdout.write(success_msg),
+                error=lambda t: sys.stdout.write('\nError!\n')
+            )
+        except Exception as e:
+            print e.msg
+
+    def get_vm_props(self, vm_name, propfilter):
     
+        # Starting point
+        obj_spec = vmodl.query.PropertyCollector.ObjectSpec()
+        obj_spec.obj = self.content.viewManager.CreateContainerView(self.content.rootFolder, [vim.VirtualMachine,], True)
+        obj_spec.skip = True
+ 
+        # Define path for search
+        traversal_spec = vmodl.query.PropertyCollector.TraversalSpec()
+        traversal_spec.name = 'traversing'
+        traversal_spec.path = 'view'
+        traversal_spec.skip = False
+        traversal_spec.type = obj_spec.obj.__class__
+        obj_spec.selectSet = [traversal_spec]
+    
+        # Identify the properties to the retrieved
+        property_spec = vmodl.query.PropertyCollector.PropertySpec()
+        property_spec.type = vim.VirtualMachine
+        property_spec.pathSet = list(set(propfilter + ['name',]))
+
+        # Create filter specification
+        filter_spec = vmodl.query.PropertyCollector.FilterSpec()
+        filter_spec.objectSet = [obj_spec]
+        filter_spec.propSet = [property_spec]
+    
+        # Retrieve properties
+        collector = self.session.content.propertyCollector
+        props = collector.RetrieveContents([filter_spec])
+
+        for obj in props:
+
+            # Compile propeties
+            properties = {prop.name: prop.val for prop in obj.propSet}
+
+            # Only care about the specific VM
+            if properties['name'] != vm_name:
+                continue
+
+            # Return this one with obj
+            properties['obj'] = obj.obj
+            return properties
+   
+    def get_memory(self, vm_name, alternate=False):
+        vm = self.get_vm_props(vm_name, ['config.hardware.memoryMB',])
+        print(
+            '{} memory: {:.1f}GB'.format(
+                vm_name,
+                vm['config.hardware.memoryMB'] / 1024
+            )
+        )
+
     def clone(
         self,
         template_name,
