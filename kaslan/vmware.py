@@ -1,9 +1,8 @@
 import atexit
 import sys
 
-from pyVim.connect import SmartConnect, Disconnect
+from pyVim.connect import SmartConnect, Disconnect, GetSi
 from pyVmomi import vim, vmodl
-from pyvmomi_tools.cli import cursor
 from kaslan.exceptions import VMwareException
 
 # Turn off SSL warning
@@ -215,5 +214,65 @@ class VMware(object):
 
         # Create task
         task = template_vm.Clone(folder=folder, name=vm_name, spec=clonespec)
-        self.start_task(task,'VM "{}" cloned in folder "{}"'.format(vm_name, folder_path))
+        self.start_task(task,'VM {} cloned in folder {}'.format(vm_name, folder_path))
 
+
+def wait_for_task(task, *args, **kwargs):
+
+    def no_op(task, *args):
+        pass
+
+    queued_callback = kwargs.get('queued', no_op)
+    running_callback = kwargs.get('running', no_op)
+    success_callback = kwargs.get('success', no_op)
+    error_callback = kwargs.get('error', no_op)
+
+    si = GetSi()
+    pc = si.content.propertyCollector
+
+
+    obj_spec = [vmodl.query.PropertyCollector.ObjectSpec(obj=task)]
+    prop_spec = vmodl.query.PropertyCollector.PropertySpec(type=vim.Task, pathSet=[], all=True)
+    filter_spec = vmodl.query.PropertyCollector.FilterSpec()
+    filter_spec.objectSet = obj_spec
+    filter_spec.propSet = [prop_spec]
+    filter = pc.CreateFilter(filter_spec, True)
+
+    try:
+        version, state = None, None
+
+        # Loop looking for updates till the state moves to a completed state.
+        waiting = True
+        while waiting:
+            update = pc.WaitForUpdates(version)
+            version = update.version
+            for filterSet in update.filterSet:
+                for objSet in filterSet.objectSet:
+                    task = objSet.obj
+                    for change in objSet.changeSet:
+                        if change.name == 'info':
+                            state = change.val.state
+                        elif change.name == 'info.state':
+                            state = change.val
+                        else:
+                            continue
+
+                        if state == vim.TaskInfo.State.success:
+                            success_callback(task, *args)
+                            waiting = False
+
+                        elif state == vim.TaskInfo.State.queued:
+                            queued_callback(task, *args)
+
+                        elif state == vim.TaskInfo.State.running:
+                            running_callback(task, *args)
+
+                        elif state == vim.TaskInfo.State.error:
+                            error_callback(task, *args)
+                            raise task.info.error
+
+    finally:
+        if filter:
+            filter.Destroy()
+
+vim.Task.wait = wait_for_task
