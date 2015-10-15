@@ -38,7 +38,7 @@ def main():
     parser_clone_opts.add_argument('--cpus', '-c', metavar='COUNT', help='CPU count for VM', default=config['defaults']['cpus'])
     parser_clone_opts.add_argument('--memory', '-m', metavar='MB', help='memory for VM', default=config['defaults']['memory_mb'])
     parser_clone_opts.add_argument('--domain', '-d', help='domain', default=config['defaults']['domain'])
-    parser_clone_opts.add_argument('--force', help='ignore pre-checks like ping test', default=False)
+    parser_clone_opts.add_argument('--force', help='ignore pre-checks like ping test', action='store_true', default=False)
 
     # Memory parser
     parser_memory = subparsers.add_parser('memory')
