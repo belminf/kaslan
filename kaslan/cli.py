@@ -16,7 +16,7 @@ def main():
 
     # Create main parser
     parser = ArgumentParser(description=__description__)
-    parser.add_argument('--vcenter-user', '-u', help='vCenter user', default=getpass.getuser())
+    parser.add_argument('-u', dest='vcenter_user', help='vCenter user', default=getpass.getuser())
     subparsers = parser.add_subparsers()
 
     # Clone parser
