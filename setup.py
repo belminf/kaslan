@@ -14,7 +14,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'kaslan = kaslan.__main__:main',
+            'kaslan = kaslan.cli:main',
         ],
     },
 )
