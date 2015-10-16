@@ -173,7 +173,7 @@ class VMware(object):
         # Configuration specs
         vmconf = vim.vm.ConfigSpec()
         vmconf.numCPUs = cpus
-        vmconf.memoryMB = memory
+        vmconf.memoryMB = memory * 1024
         vmconf.cpuHotAddEnabled = True
         vmconf.memoryHotAddEnabled = True
         vmconf.deviceChange = [nic]
@@ -229,7 +229,6 @@ def wait_for_task(task, *args, **kwargs):
 
     si = GetSi()
     pc = si.content.propertyCollector
-
 
     obj_spec = [vmodl.query.PropertyCollector.ObjectSpec(obj=task)]
     prop_spec = vmodl.query.PropertyCollector.PropertySpec(type=vim.Task, pathSet=[], all=True)

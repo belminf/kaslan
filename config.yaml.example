@@ -3,7 +3,7 @@ vcenter_host: vcenter.example.com
 vcenter_post: 443
 defaults:
   cpus: 1
-  memory_mb: 2048
+  memory_gb: 2
   datacenter: VMWare
   cluster: EastBldg
   domain: example.com
