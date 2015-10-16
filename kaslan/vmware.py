@@ -9,12 +9,13 @@ from kaslan.exceptions import VMwareException
 import requests
 requests.packages.urllib3.disable_warnings()
 
+
 class VMware(object):
 
     def __init__(self, host, port, user, password):
         try:
             self.session = SmartConnect(host=host, user=user, pwd=password, port=int(port))
-        except IOError as e:
+        except IOError:
             raise VMwareException('Unable to create vCenter session {}:{}@{}'.format(host, port, user))
 
         atexit.register(Disconnect, self.session)
@@ -37,7 +38,7 @@ class VMware(object):
             current_folder = self.get_object(vim.Folder, f, root=current_folder)
         return current_folder
 
-    def start_task(self, task, success_msg):
+    def start_task(self, task, success_msg, hint_msg=None):
         try:
             task.wait(
                 queued=lambda t: sys.stdout.write("Queued...\n"),
@@ -46,15 +47,17 @@ class VMware(object):
                 error=lambda t: sys.stdout.write('\nError!\n')
             )
         except Exception as e:
-            print e.msg
+            print 'Exception: {}'.format(e.msg)
+            if hint_msg:
+                print 'Hint: {}'.format(hint_msg)
 
     def get_vm_props(self, vm_name, propfilter):
-        
+
         # Starting point
         obj_spec = vmodl.query.PropertyCollector.ObjectSpec()
-        obj_spec.obj = self.content.viewManager.CreateContainerView(self.content.rootFolder, [vim.VirtualMachine,], True)
+        obj_spec.obj = self.content.viewManager.CreateContainerView(self.content.rootFolder, [vim.VirtualMachine, ], True)
         obj_spec.skip = True
-        
+
         # Define path for search
         traversal_spec = vmodl.query.PropertyCollector.TraversalSpec()
         traversal_spec.name = 'traversing'
@@ -62,17 +65,17 @@ class VMware(object):
         traversal_spec.skip = False
         traversal_spec.type = obj_spec.obj.__class__
         obj_spec.selectSet = [traversal_spec]
-        
+
         # Identify the properties to the retrieved
         property_spec = vmodl.query.PropertyCollector.PropertySpec()
         property_spec.type = vim.VirtualMachine
-        property_spec.pathSet = list(set(propfilter + ['name',]))
+        property_spec.pathSet = list(set(propfilter + ['name', ]))
 
         # Create filter specification
         filter_spec = vmodl.query.PropertyCollector.FilterSpec()
         filter_spec.objectSet = [obj_spec]
         filter_spec.propSet = [property_spec]
-        
+
         # Retrieve properties
         collector = self.session.content.propertyCollector
         props = collector.RetrieveContents([filter_spec])
@@ -89,9 +92,24 @@ class VMware(object):
             # Return this one with obj
             properties['obj'] = obj.obj
             return properties
-            
-    def get_memory(self, vm_name, alternate=False):
-        vm = self.get_vm_props(vm_name, ['config.hardware.memoryMB',])
+
+    def add_memory(self, vm_name, add_gb):
+        vm = self.get_vm_props(vm_name, ['config.hardware.memoryMB', 'config.hardware.numCPU', ])
+
+        new_gb = (vm['config.hardware.memoryMB'] / 1024) + add_gb
+
+        spec = vim.vm.ConfigSpec()
+        spec.memoryMB = (new_gb * 1024)
+        spec.numCPUs = vm['config.hardware.numCPU']
+
+        self.start_task(
+            vm['obj'].ReconfigVM_Task(spec=spec),
+            success_msg='{} memory now: {:.1f}GB'.format(vm_name, new_gb),
+            hint_msg='Hot plug memory may be disabled or limited (see: http://kb.vmware.com/kb/2008405)'
+        )
+
+    def get_memory(self, vm_name):
+        vm = self.get_vm_props(vm_name, ['config.hardware.memoryMB', ])
         print(
             '{} memory: {:.1f}GB'.format(
                 vm_name,
@@ -186,7 +204,7 @@ class VMware(object):
         nic_map.adapter.subnetMask = subnet
         nic_map.adapter.gateway = gateway
         nic_map.adapter.dnsDomain = domain
-        
+
         # Global networking
         global_ip = vim.vm.customization.GlobalIPSettings()
         global_ip.dnsServerList = dns
@@ -214,7 +232,7 @@ class VMware(object):
 
         # Create task
         task = template_vm.Clone(folder=folder, name=vm_name, spec=clonespec)
-        self.start_task(task,'VM {} cloned in folder {}'.format(vm_name, folder_path))
+        self.start_task(task, 'VM {} cloned in folder {}'.format(vm_name, folder_path))
 
 
 def wait_for_task(task, *args, **kwargs):

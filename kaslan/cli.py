@@ -31,9 +31,9 @@ def main():
 
     # Clone: options
     parser_clone_opts = parser_clone.add_argument_group('cloning optional overrides')
-    parser_clone_opts.add_argument('--datacenter', dest='datacenter_name',  help='datacenter', default=config['defaults']['datacenter'])
+    parser_clone_opts.add_argument('--datacenter', dest='datacenter_name', help='datacenter', default=config['defaults']['datacenter'])
     parser_clone_opts.add_argument('--cluster', dest='cluster_name', help='cluster', default=config['defaults']['cluster'])
-    parser_clone_opts.add_argument('--folder', dest='folder_path',  help='folder path, with / delimiter', default=config['defaults'].get('folder'))
+    parser_clone_opts.add_argument('--folder', dest='folder_path', help='folder path, with / delimiter', default=config['defaults'].get('folder'))
     parser_clone_opts.add_argument('--ip', help='IP address for VM, defaults to DNS lookup of vm_name', default=None)
     parser_clone_opts.add_argument('--cpus', '-c', metavar='COUNT', help='CPU count for VM', default=config['defaults']['cpus'])
     parser_clone_opts.add_argument('--memory', '-m', metavar='GB', help='memory for VM', default=config['defaults']['memory_gb'])
@@ -48,9 +48,14 @@ def main():
     parser_memory_args = parser_memory.add_argument_group('memory arguments')
     parser_memory_args.add_argument('vm_name', help='name of VM')
 
+    # Clone: options
+    parser_memory_opts = parser_memory.add_argument_group('memory options')
+    parser_memory_opts.add_argument('--add', '-a', dest='memory_add', metavar='GB', type=int, help='add memory (GB)')
+
     # Parse arguments
     args = parser.parse_args()
     args.func(args, config)
+
 
 def memory(args, config):
 
@@ -66,7 +71,11 @@ def memory(args, config):
     )
 
     # Get memory
-    vmware.get_memory(args.vm_name, True)
+    if args.memory_add:
+        vmware.add_memory(args.vm_name, args.memory_add)
+    else:
+        vmware.get_memory(args.vm_name, True)
+
 
 def clone(args, config):
 
@@ -76,7 +85,7 @@ def clone(args, config):
 
     # Get IP address from name if not provided
     if not args.ip:
-        args.ip = repr(socket.gethostbyname('{}.{}'.format(args.vm_name,args.domain)))[1:-1]
+        args.ip = repr(socket.gethostbyname('{}.{}'.format(args.vm_name, args.domain)))[1:-1]
 
     # Make sure IP address isn't used
     if not args.force and os.system('ping -c1 {} > /dev/null 2>&1'.format(args.ip)) == 0:
