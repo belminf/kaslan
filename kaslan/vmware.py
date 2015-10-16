@@ -140,6 +140,19 @@ class VMware(object):
             )
         )
 
+    def get_disks(self, vm_name):
+        vm = self.get_vm_props(vm_name, ['config.hardware.device', ])
+        print('Disks')
+        print('-----')
+        disk_index = 0
+        for device in vm['config.hardware.device']:
+            if type(device) == vim.vm.device.VirtualDisk:
+                disk_index += 1
+                thin_prov = ' (thin)' if device.backing.thinProvisioned else ''
+                size_gb = device.capacityInKB / (1024 * 1024)
+                datastore = device.backing.fileName
+                print '{}) {} - {:.1f}GB{}'.format(disk_index, datastore, size_gb, thin_prov)
+
     def clone(
         self,
         template_name,

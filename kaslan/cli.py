@@ -64,9 +64,38 @@ def main():
     parser_cpus_opts = parser_cpus.add_argument_group('cpus options')
     parser_cpus_opts.add_argument('--add', '-a', dest='cpus_add', metavar='COUNT', type=int, help='add cpus')
 
+    # Disks parser
+    parser_disks = subparsers.add_parser('disks')
+    parser_disks.set_defaults(func=disks)
+
+    # Disks: arguments
+    parser_disks_args = parser_disks.add_argument_group('disks arguments')
+    parser_disks_args.add_argument('vm_name', help='name of VM')
+
+    # Disks: options
+    parser_disks_opts = parser_disks.add_argument_group('disks options')
+    parser_disks_opts.add_argument('--add', '-a', dest='disks_add', metavar='COUNT', type=int, help='add disks')
+
     # Parse arguments
     args = parser.parse_args()
     args.func(args, config)
+
+
+def disks(args, config):
+
+    # Normalize
+    args.vm_name = args.vm_name.lower()
+
+    # Create API object
+    vmware = VMware(
+        host=config['vcenter_host'],
+        port=config['vcenter_port'],
+        user=getpass.getuser(),
+        password=getpass.getpass('{}@{}: '.format(getpass.getuser(), config['vcenter_host']))
+    )
+
+    # Get disks
+    vmware.get_disks(args.vm_name)
 
 
 def memory(args, config):
@@ -86,7 +115,7 @@ def memory(args, config):
     if args.memory_add:
         vmware.add_memory(args.vm_name, args.memory_add)
     else:
-        vmware.get_memory(args.vm_name, True)
+        vmware.get_memory(args.vm_name)
 
 
 def cpus(args, config):
