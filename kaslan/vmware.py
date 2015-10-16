@@ -93,6 +93,9 @@ class VMware(object):
             properties['obj'] = obj.obj
             return properties
 
+        # Couldn't find VM
+        raise VMwareException('Unable to find properties for VM {}'.format(vm_name))
+
     def add_memory(self, vm_name, add_gb):
         vm = self.get_vm_props(vm_name, ['config.hardware.memoryMB', 'config.hardware.numCPU', ])
 
