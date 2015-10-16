@@ -111,9 +111,32 @@ class VMware(object):
     def get_memory(self, vm_name):
         vm = self.get_vm_props(vm_name, ['config.hardware.memoryMB', ])
         print(
-            '{} memory: {:.1f}GB'.format(
+            '\n{} memory: {:.1f}GB'.format(
                 vm_name,
                 vm['config.hardware.memoryMB'] / 1024
+            )
+        )
+
+    def add_cpus(self, vm_name, add_cpu_count):
+        vm = self.get_vm_props(vm_name, ['config.hardware.memoryMB', 'config.hardware.numCPU', ])
+
+        new_cpu_count = vm['config.hardware.numCPU'] + add_cpu_count
+
+        spec = vim.vm.ConfigSpec()
+        spec.memoryMB = vm['config.hardware.memoryMB']
+        spec.numCPUs = new_cpu_count
+
+        self.start_task(
+            vm['obj'].ReconfigVM_Task(spec=spec),
+            success_msg='{} CPU count now: {}'.format(vm_name, new_cpu_count)
+        )
+
+    def get_cpus(self, vm_name):
+        vm = self.get_vm_props(vm_name, ['config.hardware.numCPU', ])
+        print(
+            '\n{} CPU count: {}'.format(
+                vm_name,
+                vm['config.hardware.numCPU']
             )
         )
 

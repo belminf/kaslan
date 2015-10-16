@@ -48,9 +48,21 @@ def main():
     parser_memory_args = parser_memory.add_argument_group('memory arguments')
     parser_memory_args.add_argument('vm_name', help='name of VM')
 
-    # Clone: options
+    # Memory: options
     parser_memory_opts = parser_memory.add_argument_group('memory options')
     parser_memory_opts.add_argument('--add', '-a', dest='memory_add', metavar='GB', type=int, help='add memory (GB)')
+
+    # CPUs parser
+    parser_cpus = subparsers.add_parser('cpus')
+    parser_cpus.set_defaults(func=cpus)
+
+    # CPUs: arguments
+    parser_cpus_args = parser_cpus.add_argument_group('cpus arguments')
+    parser_cpus_args.add_argument('vm_name', help='name of VM')
+
+    # CPUs: options
+    parser_cpus_opts = parser_cpus.add_argument_group('cpus options')
+    parser_cpus_opts.add_argument('--add', '-a', dest='cpus_add', metavar='COUNT', type=int, help='add cpus')
 
     # Parse arguments
     args = parser.parse_args()
@@ -75,6 +87,28 @@ def memory(args, config):
         vmware.add_memory(args.vm_name, args.memory_add)
     else:
         vmware.get_memory(args.vm_name, True)
+
+
+def cpus(args, config):
+
+    # Normalize
+    args.vm_name = args.vm_name.lower()
+
+    # Create API object
+    vmware = VMware(
+        host=config['vcenter_host'],
+        port=config['vcenter_port'],
+        user=getpass.getuser(),
+        password=getpass.getpass('{}@{}: '.format(getpass.getuser(), config['vcenter_host']))
+    )
+
+    # Add CPUs
+    if args.cpus_add:
+        vmware.add_cpus(args.vm_name, args.cpus_add)
+
+    # Get CPU count
+    else:
+        vmware.get_cpus(args.vm_name)
 
 
 def clone(args, config):
