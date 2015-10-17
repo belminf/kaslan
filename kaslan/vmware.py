@@ -184,7 +184,6 @@ class VMware(object):
         print 'Guest Tools : {}'.format(vm['guest.toolsStatus'])
         print 'VM Version  : {}'.format(vm['config.version'])
         print 'Last Boot   : {}'.format(boot_time)
-        print ''
 
     def clone(
         self,

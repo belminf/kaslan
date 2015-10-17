@@ -91,6 +91,18 @@ def main():
     # Parse arguments
     args = parser.parse_args()
     args.func(args, config)
+    print ''
+
+
+def get_vmware(args, config):
+    vmware = VMware(
+        host=config['vcenter_host'],
+        port=config['vcenter_port'],
+        user=getpass.getuser(),
+        password=getpass.getpass('{}@{}: '.format(getpass.getuser(), config['vcenter_host']))
+    )
+    print ''
+    return vmware
 
 
 def status(args, config):
@@ -98,13 +110,8 @@ def status(args, config):
     # Normalize
     args.vm_name = args.vm_name.lower()
 
-    # Create API object
-    vmware = VMware(
-        host=config['vcenter_host'],
-        port=config['vcenter_port'],
-        user=getpass.getuser(),
-        password=getpass.getpass('{}@{}: '.format(getpass.getuser(), config['vcenter_host']))
-    )
+    # Get VMware
+    vmware = get_vmware(args, config)
 
     # Get status
     vmware.get_status(args.vm_name)
@@ -115,13 +122,8 @@ def disks(args, config):
     # Normalize
     args.vm_name = args.vm_name.lower()
 
-    # Create API object
-    vmware = VMware(
-        host=config['vcenter_host'],
-        port=config['vcenter_port'],
-        user=getpass.getuser(),
-        password=getpass.getpass('{}@{}: '.format(getpass.getuser(), config['vcenter_host']))
-    )
+    # Get VMware
+    vmware = get_vmware(args, config)
 
     # Get disks
     vmware.get_disks(args.vm_name)
@@ -132,13 +134,8 @@ def memory(args, config):
     # Normalize
     args.vm_name = args.vm_name.lower()
 
-    # Create API object
-    vmware = VMware(
-        host=config['vcenter_host'],
-        port=config['vcenter_port'],
-        user=getpass.getuser(),
-        password=getpass.getpass('{}@{}: '.format(getpass.getuser(), config['vcenter_host']))
-    )
+    # Get VMware
+    vmware = get_vmware(args, config)
 
     # Get memory
     if args.memory_add:
@@ -152,13 +149,8 @@ def cpus(args, config):
     # Normalize
     args.vm_name = args.vm_name.lower()
 
-    # Create API object
-    vmware = VMware(
-        host=config['vcenter_host'],
-        port=config['vcenter_port'],
-        user=getpass.getuser(),
-        password=getpass.getpass('{}@{}: '.format(getpass.getuser(), config['vcenter_host']))
-    )
+    # Get VMware
+    vmware = get_vmware(args, config)
 
     # Add CPUs
     if args.cpus_add:
@@ -201,15 +193,11 @@ def clone(args, config):
     except KeyError:
         raise CLIException('Template {} is not configured in config.yaml'.format(args.template))
 
-    # Create API object
-    vm = VMware(
-        host=config['vcenter_host'],
-        port=config['vcenter_port'],
-        user=args.vcenter_user,
-        password=getpass.getpass('{}@{}: '.format(args.vcenter_user, config['vcenter_host'])))
+    # Get VMware
+    vmware = get_vmware(args, config)
 
     # Perform the clone
-    vm.clone(
+    vmware.clone(
         template_name=template_name,
         **dict(vars(args).items() + net_settings.items() + cluster_net_settings.items())
     )
