@@ -1,8 +1,10 @@
 import atexit
 import sys
 
+from tzlocal import get_localzone
 from pyVim.connect import SmartConnect, Disconnect, GetSi
 from pyVmomi import vim, vmodl
+
 from kaslan.exceptions import VMwareException
 
 # Turn off SSL warning
@@ -155,6 +157,34 @@ class VMware(object):
                 size_gb = device.capacityInKB / (1024 * 1024)
                 datastore = device.backing.fileName
                 print '{}) {} - {:.1f}GB{}'.format(disk_index, datastore, size_gb, thin_prov)
+
+    def get_status(self, vm_name):
+        vm = self.get_vm_props(
+            vm_name,
+            [
+                'config.hardware.numCPU',
+                'config.hardware.memoryMB',
+                'guest.guestState',
+                'guest.toolsStatus',
+                'guest.ipAddress',
+                'guest.hostName',
+                'config.guestFullName',
+                'config.version',
+                'runtime.bootTime',
+            ]
+        )
+
+        boot_time = vm['runtime.bootTime'].astimezone(get_localzone()).strftime('%m/%d/%Y %H:%M')
+        print 'Hostname    : {}'.format(vm['guest.hostName'])
+        print 'OS          : {}'.format(vm['config.guestFullName'])
+        print 'IP Address  : {}'.format(vm['guest.ipAddress'])
+        print 'CPU Count   : {}'.format(vm['config.hardware.numCPU'])
+        print 'Memory      : {:.1f}GB'.format(vm['config.hardware.memoryMB'] / 1024)
+        print 'Power State : {}'.format(vm['guest.guestState'])
+        print 'Guest Tools : {}'.format(vm['guest.toolsStatus'])
+        print 'VM Version  : {}'.format(vm['config.version'])
+        print 'Last Boot   : {}'.format(boot_time)
+        print ''
 
     def clone(
         self,

@@ -76,9 +76,38 @@ def main():
     parser_disks_opts = parser_disks.add_argument_group('disks options')
     parser_disks_opts.add_argument('--add', '-a', dest='disks_add', metavar='COUNT', type=int, help='add disks')
 
+    # Status parser
+    parser_status = subparsers.add_parser('status')
+    parser_status.set_defaults(func=status)
+
+    # Status: arguments
+    parser_status_args = parser_status.add_argument_group('status arguments')
+    parser_status_args.add_argument('vm_name', help='name of VM')
+
+    # Status: options
+    parser_status_opts = parser_status.add_argument_group('status options')
+    parser_status_opts.add_argument('--add', '-a', dest='status_add', metavar='COUNT', type=int, help='add status')
+
     # Parse arguments
     args = parser.parse_args()
     args.func(args, config)
+
+
+def status(args, config):
+
+    # Normalize
+    args.vm_name = args.vm_name.lower()
+
+    # Create API object
+    vmware = VMware(
+        host=config['vcenter_host'],
+        port=config['vcenter_port'],
+        user=getpass.getuser(),
+        password=getpass.getpass('{}@{}: '.format(getpass.getuser(), config['vcenter_host']))
+    )
+
+    # Get status
+    vmware.get_status(args.vm_name)
 
 
 def disks(args, config):

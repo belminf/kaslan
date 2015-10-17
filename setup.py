@@ -9,6 +9,7 @@ setup(
         'PyYAML',
         'argparse',
         'netaddr',
+        'tzlocal',
         'pyvmomi==5.5.0.2014.1.1',
         'requests',
     ],
