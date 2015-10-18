@@ -53,11 +53,11 @@ class VMware(object):
             if hint_msg:
                 print 'Hint: {}'.format(hint_msg)
 
-    def get_vm_props(self, vm_name, propfilter):
+    def get_obj_props(self, obj_names, prop_filter, obj_type=vim.VirtualMachine):
 
         # Starting point
         obj_spec = vmodl.query.PropertyCollector.ObjectSpec()
-        obj_spec.obj = self.content.viewManager.CreateContainerView(self.content.rootFolder, [vim.VirtualMachine, ], True)
+        obj_spec.obj = self.content.viewManager.CreateContainerView(self.content.rootFolder, [obj_type, ], True)
         obj_spec.skip = True
 
         # Define path for search
@@ -70,8 +70,8 @@ class VMware(object):
 
         # Identify the properties to the retrieved
         property_spec = vmodl.query.PropertyCollector.PropertySpec()
-        property_spec.type = vim.VirtualMachine
-        property_spec.pathSet = list(set(propfilter + ['name', ]))
+        property_spec.type = obj_type
+        property_spec.pathSet = list(set(prop_filter + ['name', ]))
 
         # Create filter specification
         filter_spec = vmodl.query.PropertyCollector.FilterSpec()
@@ -82,24 +82,29 @@ class VMware(object):
         collector = self.session.content.propertyCollector
         props = collector.RetrieveContents([filter_spec])
 
+        filtered_objs = []
         for obj in props:
 
             # Compile propeties
             properties = {prop.name: prop.val for prop in obj.propSet}
 
             # Only care about the specific VM
-            if properties['name'] != vm_name:
+            if properties['name'] not in obj_names:
                 continue
 
             # Return this one with obj
             properties['obj'] = obj.obj
-            return properties
+            filtered_objs.append(properties)
+
+            # If we found them all, return
+            if len(filtered_objs) == len(obj_names):
+                return filtered_objs
 
         # Couldn't find VM
-        raise VMwareException('Unable to find properties for VM {}'.format(vm_name))
+        raise VMwareException('Unable to find properties for objects {}'.format(obj_names))
 
     def add_memory(self, vm_name, add_gb):
-        vm = self.get_vm_props(vm_name, ['config.hardware.memoryMB', 'config.hardware.numCPU', ])
+        vm = self.get_obj_props((vm_name, ), ['config.hardware.memoryMB', 'config.hardware.numCPU', ])[0]
 
         new_gb = (vm['config.hardware.memoryMB'] / 1024) + add_gb
 
@@ -114,7 +119,7 @@ class VMware(object):
         )
 
     def get_memory(self, vm_name):
-        vm = self.get_vm_props(vm_name, ['config.hardware.memoryMB', ])
+        vm = self.get_obj_props((vm_name, ), ['config.hardware.memoryMB', ])[0]
         print(
             '\n{} memory: {:.1f}GB'.format(
                 vm_name,
@@ -123,7 +128,7 @@ class VMware(object):
         )
 
     def add_cpus(self, vm_name, add_cpu_count):
-        vm = self.get_vm_props(vm_name, ['config.hardware.memoryMB', 'config.hardware.numCPU', ])
+        vm = self.get_obj_props((vm_name, ), ['config.hardware.memoryMB', 'config.hardware.numCPU', ])[0]
 
         new_cpu_count = vm['config.hardware.numCPU'] + add_cpu_count
 
@@ -137,7 +142,7 @@ class VMware(object):
         )
 
     def get_cpus(self, vm_name):
-        vm = self.get_vm_props(vm_name, ['config.hardware.numCPU', ])
+        vm = self.get_obj_props((vm_name, ), ['config.hardware.numCPU', ])[0]
         print(
             '\n{} CPU count: {}'.format(
                 vm_name,
@@ -146,7 +151,7 @@ class VMware(object):
         )
 
     def get_disks(self, vm_name):
-        vm = self.get_vm_props(vm_name, ['config.hardware.device', ])
+        vm = self.get_obj_props((vm_name, ), ['config.hardware.device', ])[0]
         print('Disks')
         print('-----')
         disk_index = 0
@@ -159,8 +164,8 @@ class VMware(object):
                 print '{}) {} - {:.1f}GB{}'.format(disk_index, datastore, size_gb, thin_prov)
 
     def get_status(self, vm_name):
-        vm = self.get_vm_props(
-            vm_name,
+        vm = self.get_obj_props(
+            (vm_name, ),
             [
                 'config.hardware.numCPU',
                 'config.hardware.memoryMB',
@@ -172,7 +177,7 @@ class VMware(object):
                 'config.version',
                 'runtime.bootTime',
             ]
-        )
+        )[0]
 
         boot_time = vm['runtime.bootTime'].astimezone(get_localzone()).strftime('%m/%d/%Y %H:%M')
         print 'Hostname    : {}'.format(vm['guest.hostName'])
