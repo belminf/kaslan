@@ -17,5 +17,9 @@ networks:
       EastBldg:
         network_name: VLAN_3
         portgroup: true
+datastores:
+    EastBldg:
+	- ds1
+	- ds2
 templates:
   RHEL7: RHEL 7.1

@@ -50,7 +50,7 @@ def main():
 
     # Memory: options
     parser_memory_opts = parser_memory.add_argument_group('memory options')
-    parser_memory_opts.add_argument('--add', '-a', dest='memory_add', metavar='GB', type=int, help='add memory (GB)')
+    parser_memory_opts.add_argument('--add', '-a', dest='memory_add', metavar='GB', type=float, help='add memory (GB)')
 
     # CPUs parser
     parser_cpus = subparsers.add_parser('cpus')

@@ -106,10 +106,12 @@ class VMware(object):
     def add_memory(self, vm_name, add_gb):
         vm = self.get_obj_props((vm_name, ), ['config.hardware.memoryMB', 'config.hardware.numCPU', ])[0]
 
-        new_gb = (vm['config.hardware.memoryMB'] / 1024) + add_gb
+        # Need MB (long) and GB value
+        new_mb = long(vm['config.hardware.memoryMB'] + (add_gb * 1024))
+        new_gb = new_mb / 1024
 
         spec = vim.vm.ConfigSpec()
-        spec.memoryMB = (new_gb * 1024)
+        spec.memoryMB = new_mb
         spec.numCPUs = vm['config.hardware.numCPU']
 
         self.start_task(
