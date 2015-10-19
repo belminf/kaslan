@@ -178,6 +178,7 @@ class VMware(object):
                 'config.guestFullName',
                 'config.version',
                 'runtime.bootTime',
+                'runtime.powerState',
             ]
         )[0]
 
@@ -187,10 +188,21 @@ class VMware(object):
         print 'IP Address  : {}'.format(vm['guest.ipAddress'])
         print 'CPU Count   : {}'.format(vm['config.hardware.numCPU'])
         print 'Memory      : {:.1f}GB'.format(vm['config.hardware.memoryMB'] / 1024)
-        print 'Power State : {}'.format(vm['guest.guestState'])
+        print 'Power State : {}'.format(vm['runtime.powerState'])
+        print 'VM Status   : {}'.format(vm['guest.guestState'])
         print 'Guest Tools : {}'.format(vm['guest.toolsStatus'])
         print 'VM Version  : {}'.format(vm['config.version'])
         print 'Last Boot   : {}'.format(boot_time)
+
+    def destroy(self, vm_name):
+        vm = self.get_obj_props((vm_name, ), ['runtime.powerState', ])[0]
+
+        # If VM on, turn off
+        if vm['runtime.powerState'] == vim.VirtualMachinePowerState.poweredOn:
+            print 'Turning off VM before deleting...'
+            self.start_task(vm['obj'].PowerOff(), success_msg='VM turned off, deleting from disk now...')
+
+        self.start_task(vm['obj'].Destroy(), success_msg='VM {} has been destroyed'.format(vm_name))
 
     def clone(
         self,

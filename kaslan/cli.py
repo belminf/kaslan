@@ -88,6 +88,14 @@ def main():
     parser_status_opts = parser_status.add_argument_group('status options')
     parser_status_opts.add_argument('--add', '-a', dest='status_add', metavar='COUNT', type=int, help='add status')
 
+    # Destroy parser
+    parser_destroy = subparsers.add_parser('destroy')
+    parser_destroy.set_defaults(func=destroy)
+
+    # Destroy: arguments
+    parser_destroy_args = parser_destroy.add_argument_group('destroy arguments')
+    parser_destroy_args.add_argument('vm_name', help='name of VM')
+
     # Parse arguments
     args = parser.parse_args()
     args.func(args, config)
@@ -103,6 +111,25 @@ def get_vmware(args, config):
     )
     print ''
     return vmware
+
+
+def destroy(args, config):
+
+    # Normalize
+    args.vm_name = args.vm_name.lower()
+
+    # Confirm
+    if raw_input('\nConfirm deletion by re-typing VM name: ') != args.vm_name:
+        print 'Confirmation failed, canceled'
+        return
+
+    # ASSERT: Confirmed
+
+    # Get VMware
+    vmware = get_vmware(args, config)
+
+    # Destroy VM
+    vmware.destroy(args.vm_name)
 
 
 def status(args, config):
