@@ -121,7 +121,7 @@ class VMware(object):
     def get_memory(self, vm_name):
         vm = self.get_obj_props((vm_name, ), ['config.hardware.memoryMB', ])[0]
         print(
-            '\n{} memory: {:.1f}GB'.format(
+            '{} memory: {:.1f}GB'.format(
                 vm_name,
                 vm['config.hardware.memoryMB'] / 1024
             )
@@ -144,7 +144,7 @@ class VMware(object):
     def get_cpus(self, vm_name):
         vm = self.get_obj_props((vm_name, ), ['config.hardware.numCPU', ])[0]
         print(
-            '\n{} CPU count: {}'.format(
+            '{} CPU count: {}'.format(
                 vm_name,
                 vm['config.hardware.numCPU']
             )
