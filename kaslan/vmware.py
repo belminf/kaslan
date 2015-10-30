@@ -40,6 +40,22 @@ class VMware(object):
             current_folder = self.get_object(vim.Folder, f, root=current_folder)
         return current_folder
 
+    def get_portgroup(self, vlan, host):
+        def vlan_host_filter(props):
+
+            # If host is in this network's host, return whether the vlan matches
+            if host in (h.name for h in props['host']):
+                return props['config.defaultPortConfig'].vlan.vlanId == vlan
+
+            # Fallback to false
+            return False
+
+        return self.get_obj_props(
+            prop_names=('host', 'config.defaultPortConfig'),
+            obj_type=vim.dvs.DistributedVirtualPortgroup,
+            obj_filter=vlan_host_filter
+        )['obj']
+
     def start_task(self, task, success_msg, task_tag='', hint_msg=None, last_task=True):
         pre_result = '\n'
         if task_tag:
@@ -256,8 +272,7 @@ class VMware(object):
         ip,
         domain,
         dns,
-        network_name,
-        portgroup,
+        vlan,
         subnet,
         gateway,
         folder_path=None,
@@ -269,12 +284,6 @@ class VMware(object):
         cluster = self.get_object(vim.ClusterComputeResource, cluster_name)
         datastore = self.get_object(vim.Datastore, datastore_name)
         template_vm = self.get_object(vim.VirtualMachine, template_name)
-
-        # DVS portgroup do things a tad different
-        if not portgroup:
-            network = self.get_object(vim.Network, network_name)
-        else:
-            network = self.get_object(vim.dvs.DistributedVirtualPortgroup, network_name)
 
         # Get folder, defaults to datacenter
         if folder_path:
@@ -290,38 +299,12 @@ class VMware(object):
         relospec.datastore = datastore
         relospec.pool = resource_pool
 
-        # Modify NIC card
-        nic = vim.vm.device.VirtualDeviceSpec()
-        nic.operation = vim.vm.device.VirtualDeviceSpec.Operation.edit
-        nic.device = vim.vm.device.VirtualVmxnet3()
-        nic.device.wakeOnLanEnabled = True
-        nic.device.addressType = 'assigned'
-        nic.device.key = 4000
-        nic.device.deviceInfo = vim.Description()
-        nic.device.deviceInfo.label = 'Network Adapter 1'
-        nic.device.deviceInfo.summary = network_name
-        if not portgroup:
-            nic.device.backing = vim.vm.device.VirtualEthernetCard.NetworkBackingInfo()
-            nic.device.backing.network = network
-            nic.device.backing.deviceName = network_name
-            nic.device.backing.useAutoDetect = False
-        else:
-            portgroup_connection = vim.dvs.PortConnection()
-            portgroup_connection.portgroupKey = network.key
-            portgroup_connection.switchUuid = network.config.distributedVirtualSwitch.uuid
-            nic.device.backing = vim.vm.device.VirtualEthernetCard.DistributedVirtualPortBackingInfo()
-            nic.device.backing.port = portgroup_connection
-        nic.device.connectable = vim.vm.device.VirtualDevice.ConnectInfo()
-        nic.device.connectable.startConnected = True
-        nic.device.connectable.allowGuestControl = True
-
         # Configuration specs
         vmconf = vim.vm.ConfigSpec()
         vmconf.numCPUs = cpus
         vmconf.memoryMB = memory * 1024
         vmconf.cpuHotAddEnabled = True
         vmconf.memoryHotAddEnabled = True
-        vmconf.deviceChange = [nic]
 
         # NIC mapping
         nic_map = vim.vm.customization.AdapterMapping()
@@ -359,7 +342,49 @@ class VMware(object):
 
         # Create task
         task = template_vm.Clone(folder=folder, name=vm_name, spec=clonespec)
-        self.start_task(task, 'VM {} cloned in folder {}'.format(vm_name, folder_path))
+        result = self.start_task(
+            task,
+            task_tag='Cloning',
+            success_msg='Cloned in folder {}'.format(vm_name, folder_path),
+            last_task=False
+        )
+
+        # Do not continue if we didn't get clone
+        if not result:
+            return
+
+        # Change networking
+        vm = self.get_object(vim.VirtualMachine, vm_name)
+        vmconf = vim.vm.ConfigSpec()
+
+        # Get right network
+        network = self.get_portgroup(vlan, vm.runtime.host.name)
+
+        # Modify NIC card
+        nic = vim.vm.device.VirtualDeviceSpec()
+        nic.operation = vim.vm.device.VirtualDeviceSpec.Operation.edit
+        for device in vm.config.hardware.device:
+            if isinstance(device, vim.vm.device.VirtualEthernetCard):
+                nic.device = device
+                break
+        nic.device.wakeOnLanEnabled = True
+        portgroup_connection = vim.dvs.PortConnection()
+        portgroup_connection.portgroupKey = network.key
+        portgroup_connection.switchUuid = network.config.distributedVirtualSwitch.uuid
+        nic.device.backing = vim.vm.device.VirtualEthernetCard.DistributedVirtualPortBackingInfo()
+        nic.device.backing.port = portgroup_connection
+        nic.device.connectable = vim.vm.device.VirtualDevice.ConnectInfo()
+        nic.device.connectable.startConnected = True
+        nic.device.connectable.allowGuestControl = True
+        vmconf.deviceChange = [nic, ]
+
+        # Start task
+        task = vm.ReconfigVM_Task(vmconf)
+        self.start_task(
+            task,
+            task_tag='Networking',
+            success_msg='VIF reconfigured'
+        )
 
 
 def wait_for_task(task, *args, **kwargs):

@@ -208,12 +208,6 @@ def clone(args, config):
     except StopIteration:
         raise CLIException('Network {} not configured in config.yaml'.format(args.ip))
 
-    # Get network in the cluster
-    try:
-        cluster_net_settings = net_settings['cluster_networks'][args.cluster_name]
-    except KeyError:
-        raise CLIException('Cluster {} not configured for network {} in config.yaml'.format(args.cluster, args.ip))
-
     # Get template name from alias
     try:
         template_name = config['templates'][args.template]
@@ -226,5 +220,5 @@ def clone(args, config):
     # Perform the clone
     vmware.clone(
         template_name=template_name,
-        **dict(vars(args).items() + net_settings.items() + cluster_net_settings.items())
+        **dict(vars(args).items() + net_settings.items())
     )
