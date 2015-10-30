@@ -234,7 +234,7 @@ class VMware(object):
     def destroy(self, vm_name):
         vm = self.get_obj_props(
             obj_names=(vm_name, ),
-            obj_props=('runtime.powerState', )
+            prop_names=('runtime.powerState', )
         )
 
         # If VM on, turn off
