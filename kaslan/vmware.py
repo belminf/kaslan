@@ -40,20 +40,32 @@ class VMware(object):
             current_folder = self.get_object(vim.Folder, f, root=current_folder)
         return current_folder
 
-    def start_task(self, task, success_msg, hint_msg=None):
+    def start_task(self, task, success_msg, task_tag='', hint_msg=None, last_task=True):
+        pre_result = '\n'
+        if task_tag:
+            task_tag = '[{}] '.format(task_tag)
+            pre_result = ''
         try:
             task.wait(
-                queued=lambda t: sys.stdout.write("Queued...\n"),
-                running=lambda t: sys.stdout.write("Running...\n"),
-                success=lambda t: sys.stdout.write("\n{}\n".format(success_msg)),
-                error=lambda t: sys.stdout.write('\nError!\n')
+                queued=lambda t: sys.stdout.write('{}Queued...\n'.format(task_tag)),
+                running=lambda t: sys.stdout.write('{}Running...\n'.format(task_tag)),
+                success=lambda t: sys.stdout.write('{}{}{}\n'.format(pre_result, task_tag, success_msg)),
+                error=lambda t: sys.stdout.write('{}{}Error!\n'.format(pre_result, task_tag))
             )
+
         except Exception as e:
-            print 'Exception: {}'.format(e.msg)
+            print '\nException: {}'.format(e.msg)
             if hint_msg:
                 print 'Hint: {}'.format(hint_msg)
+            return False
 
-    def get_obj_props(self, obj_names, prop_filter, obj_type=vim.VirtualMachine):
+        return True
+
+    def get_obj_props(self, prop_names, obj_type=vim.VirtualMachine, obj_names=None, obj_filter=None, only_one=True):
+
+        # Setup filter
+        if not obj_filter and obj_names:
+            obj_filter = lambda props: props['name'] in obj_names
 
         # Starting point
         obj_spec = vmodl.query.PropertyCollector.ObjectSpec()
@@ -71,7 +83,7 @@ class VMware(object):
         # Identify the properties to the retrieved
         property_spec = vmodl.query.PropertyCollector.PropertySpec()
         property_spec.type = obj_type
-        property_spec.pathSet = list(set(prop_filter + ['name', ]))
+        property_spec.pathSet = list(set(tuple(prop_names) + ('name', )))
 
         # Create filter specification
         filter_spec = vmodl.query.PropertyCollector.FilterSpec()
@@ -80,31 +92,44 @@ class VMware(object):
 
         # Retrieve properties
         collector = self.session.content.propertyCollector
-        props = collector.RetrieveContents([filter_spec])
+        objs = collector.RetrieveContents([filter_spec])
 
-        filtered_objs = []
-        for obj in props:
+        # Filter objects
+        objs_and_props = []
+        for obj in objs:
 
             # Compile propeties
             properties = {prop.name: prop.val for prop in obj.propSet}
 
-            # Only care about the specific VM
-            if properties['name'] not in obj_names:
+            # If it fails filter, skip
+            if not obj_filter(properties):
                 continue
 
             # Return this one with obj
             properties['obj'] = obj.obj
-            filtered_objs.append(properties)
+            objs_and_props.append(properties)
 
-            # If we found them all, return
-            if len(filtered_objs) == len(obj_names):
-                return filtered_objs
+        # If we only need one object, return first
+        if only_one:
+            if len(objs_and_props) == 1:
+                return objs_and_props[0]
+            elif len(objs_and_props) > 1:
+                raise VMwareException('Found multiple {} objects that match filter'.format(obj_type))
+            else:
+                raise VMwareException('Could not find {} object that matches filter'.format(obj_type))
 
-        # Couldn't find VM
-        raise VMwareException('Unable to find properties for objects {}'.format(obj_names))
+        # If we are okay with more, then return whole
+        else:
+            if len(objs_and_props):
+                return objs_and_props
+            else:
+                raise VMwareException('Unable to find {} objects that match filter'.format(obj_type))
 
     def add_memory(self, vm_name, add_gb):
-        vm = self.get_obj_props((vm_name, ), ['config.hardware.memoryMB', 'config.hardware.numCPU', ])[0]
+        vm = self.get_obj_props(
+            obj_names=(vm_name, ),
+            prop_names=('config.hardware.memoryMB', 'config.hardware.numCPU', )
+        )
 
         # Need MB (long) and GB value
         new_mb = long(vm['config.hardware.memoryMB'] + (add_gb * 1024))
@@ -121,7 +146,10 @@ class VMware(object):
         )
 
     def get_memory(self, vm_name):
-        vm = self.get_obj_props((vm_name, ), ['config.hardware.memoryMB', ])[0]
+        vm = self.get_obj_props(
+            obj_names=(vm_name, ),
+            prop_names=('config.hardware.memoryMB', )
+        )
         print(
             '{} memory: {:.1f}GB'.format(
                 vm_name,
@@ -130,7 +158,10 @@ class VMware(object):
         )
 
     def add_cpus(self, vm_name, add_cpu_count):
-        vm = self.get_obj_props((vm_name, ), ['config.hardware.memoryMB', 'config.hardware.numCPU', ])[0]
+        vm = self.get_obj_props(
+            obj_names=(vm_name, ),
+            prop_names=('config.hardware.memoryMB', 'config.hardware.numCPU', )
+        )
 
         new_cpu_count = vm['config.hardware.numCPU'] + add_cpu_count
 
@@ -144,7 +175,10 @@ class VMware(object):
         )
 
     def get_cpus(self, vm_name):
-        vm = self.get_obj_props((vm_name, ), ['config.hardware.numCPU', ])[0]
+        vm = self.get_obj_props(
+            obj_names=(vm_name, ),
+            prop_names=('config.hardware.numCPU', )
+        )
         print(
             '{} CPU count: {}'.format(
                 vm_name,
@@ -153,7 +187,10 @@ class VMware(object):
         )
 
     def get_disks(self, vm_name):
-        vm = self.get_obj_props((vm_name, ), ['config.hardware.device', ])[0]
+        vm = self.get_obj_props(
+            obj_names=(vm_name, ),
+            prop_names=('config.hardware.device', )
+        )
         print('Disks')
         print('-----')
         disk_index = 0
@@ -167,8 +204,8 @@ class VMware(object):
 
     def get_status(self, vm_name):
         vm = self.get_obj_props(
-            (vm_name, ),
-            [
+            obj_names=(vm_name, ),
+            prop_names=(
                 'config.hardware.numCPU',
                 'config.hardware.memoryMB',
                 'guest.guestState',
@@ -179,8 +216,8 @@ class VMware(object):
                 'config.version',
                 'runtime.bootTime',
                 'runtime.powerState',
-            ]
-        )[0]
+            )
+        )
 
         boot_time = vm['runtime.bootTime'].astimezone(get_localzone()).strftime('%m/%d/%Y %H:%M')
         print 'Hostname    : {}'.format(vm['guest.hostName'])
@@ -195,7 +232,10 @@ class VMware(object):
         print 'Last Boot   : {}'.format(boot_time)
 
     def destroy(self, vm_name):
-        vm = self.get_obj_props((vm_name, ), ['runtime.powerState', ])[0]
+        vm = self.get_obj_props(
+            obj_names=(vm_name, ),
+            obj_props=('runtime.powerState', )
+        )
 
         # If VM on, turn off
         if vm['runtime.powerState'] == vim.VirtualMachinePowerState.poweredOn:
