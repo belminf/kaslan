@@ -1,4 +1,4 @@
-config.yaml
+kaslan.yaml
 *.pyc
 build
 dist

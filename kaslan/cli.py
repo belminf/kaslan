@@ -3,16 +3,33 @@ from kaslan.exceptions import CLIException
 from kaslan.vmware import VMware
 from netaddr import IPNetwork, IPAddress
 from argparse import ArgumentParser
+from os.path import expanduser
 import getpass
 import yaml
 import socket
 import os
 
 
+def get_config(path_list):
+    for f in path_list:
+        try:
+            return yaml.load(file(f))
+        except IOError:
+            continue
+
+    # ASSERT: Couldn't find a good path
+
+    raise CLIException('Could not find a valid configuration file.')
+
+
 def main():
 
     # Load configuration
-    config = yaml.load(file('config.yaml'))
+    config = get_config((
+        './kaslan.yaml',
+        expanduser('~/.kaslan.yaml'),
+        '/etc/kaslan.yaml',
+    ))
 
     # Create main parser
     parser = ArgumentParser(description=__description__)

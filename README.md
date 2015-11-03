@@ -9,6 +9,12 @@ pyVmomi based CLI for common VMware tasks.
 ### Setup
     python setup.py install
 
+Use `kaslan.yaml` for configuration. Search preference:
+
+1. Current working directory (`./kaslan.yaml`)
+2. Home directory(`~/.kaslan.yaml`)
+3. System config (`/etc/kaslan.yaml`)
+
 ##Commands
 For more detailed help: `kaslan --help`
 
