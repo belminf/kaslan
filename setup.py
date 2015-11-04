@@ -11,7 +11,7 @@ setup(
         'netaddr',
         'tzlocal',
         'pyvmomi==5.5.0.2014.1.1',
-        'requests',
+        'requests==2.5.3',
     ],
     entry_points={
         'console_scripts': [
