@@ -33,7 +33,9 @@ def main():
 
     # Create main parser
     parser = ArgumentParser(description=__description__)
-    parser.add_argument('-u', dest='vcenter_user', help='vCenter user', default=getpass.getuser())
+    parser.add_argument('-u', dest='vcenter_user', help='Override vCenter user', default=getpass.getuser())
+    parser.add_argument('--host', dest='vcenter_host', help='Override vCenter host', default=config['vcenter_host'])
+    parser.add_argument('--port', dest='vcenter_port', help='Override vCenter port', default=config['vcenter_port'])
     subparsers = parser.add_subparsers()
 
     # Clone parser
@@ -55,6 +57,7 @@ def main():
     parser_clone_opts.add_argument('--cpus', '-c', metavar='COUNT', help='CPU count for VM', default=config['defaults']['cpus'])
     parser_clone_opts.add_argument('--memory', '-m', metavar='GB', help='memory for VM', default=config['defaults']['memory_gb'])
     parser_clone_opts.add_argument('--domain', '-d', help='domain', default=config['defaults']['domain'])
+    parser_clone_opts.add_argument('--no-template-alias', help='allow the use of a template whose alias is not configured', action='store_true', default=False)
     parser_clone_opts.add_argument('--force', help='ignore pre-checks like ping test', action='store_true', default=False)
 
     # Memory parser
@@ -121,10 +124,10 @@ def main():
 
 def get_vmware(args, config):
     vmware = VMware(
-        host=config['vcenter_host'],
-        port=config['vcenter_port'],
-        user=getpass.getuser(),
-        password=getpass.getpass('{}@{}: '.format(getpass.getuser(), config['vcenter_host']))
+        host=args.vcenter_host,
+        port=args.vcenter_port,
+        user=args.vcenter_user,
+        password=getpass.getpass('{}@{}: '.format(args.vcenter_user, args.vcenter_host))
     )
     print ''
     return vmware
@@ -226,10 +229,13 @@ def clone(args, config):
         raise CLIException('Network {} not configured in config.yaml'.format(args.ip))
 
     # Get template name from alias
-    try:
-        template_name = config['templates'][args.template]
-    except KeyError:
-        raise CLIException('Template {} is not configured in config.yaml'.format(args.template))
+    if not args.no_template_alias:
+        try:
+            template_name = config['templates'][args.template]
+        except KeyError:
+            CLIException('Template {} is not configured in config.yaml, use --no-template-alias to force'.format(args.template))
+    else:
+        template_name = args.template
 
     # Get VMware
     vmware = get_vmware(args, config)
