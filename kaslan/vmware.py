@@ -235,7 +235,6 @@ class VMware(object):
             )
         )
 
-        boot_time = vm['runtime.bootTime'].astimezone(get_localzone()).strftime('%m/%d/%Y %H:%M')
         print 'Hostname    : {}'.format(vm['guest.hostName'])
         print 'OS          : {}'.format(vm['config.guestFullName'])
         print 'IP Address  : {}'.format(vm['guest.ipAddress'])
@@ -245,7 +244,9 @@ class VMware(object):
         print 'VM Status   : {}'.format(vm['guest.guestState'])
         print 'Guest Tools : {}'.format(vm['guest.toolsStatus'])
         print 'VM Version  : {}'.format(vm['config.version'])
-        print 'Last Boot   : {}'.format(boot_time)
+        if 'runtime.bootTime' in vm:
+            boot_time = vm['runtime.bootTime'].astimezone(get_localzone()).strftime('%m/%d/%Y %H:%M')
+            print 'Last Boot   : {}'.format(boot_time)
 
     def destroy(self, vm_name):
         vm = self.get_obj_props(
