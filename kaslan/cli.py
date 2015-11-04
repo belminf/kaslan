@@ -226,14 +226,14 @@ def clone(args, config):
     try:
         net_settings = next((s for c, s in config['networks'].iteritems() if IPAddress(args.ip) in IPNetwork(c)))
     except StopIteration:
-        raise CLIException('Network {} not configured in config.yaml'.format(args.ip))
+        raise CLIException('Network {} not configured in kaslan.yaml'.format(args.ip))
 
     # Get template name from alias
     if not args.no_template_alias:
         try:
             template_name = config['templates'][args.template]
         except KeyError:
-            CLIException('Template {} is not configured in config.yaml, use --no-template-alias to force'.format(args.template))
+            CLIException('Template {} is not configured in kaslan.yaml, use --no-template-alias to force'.format(args.template))
     else:
         template_name = args.template
 
