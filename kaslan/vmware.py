@@ -346,7 +346,7 @@ class VMware(object):
         result = self.start_task(
             task,
             task_tag='Cloning',
-            success_msg='Cloned in folder {}'.format(vm_name, folder_path),
+            success_msg='Cloned in folder {}'.format(folder_path),
             last_task=False
         )
 
