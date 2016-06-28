@@ -219,8 +219,8 @@ def clone(args, config):
         args.ip = repr(socket.gethostbyname('{}.{}'.format(args.vm_name, args.domain)))[1:-1]
 
     # Make sure IP address isn't used
-    if not args.force and os.system('ping -c1 {} > /dev/null 2>&1'.format(args.ip)) == 0:
-        raise CLIException('IP address {} is responding to ping, canceling'.format(args.ip))
+    if not args.force and os.system('ping -c1 -W1 {} > /dev/null 2>&1'.format(args.ip)) == 0:
+        raise CLIException('IP address {} is responding to ping, use --force to ignore ping response'.format(args.ip))
 
     # Get network settings
     try:
