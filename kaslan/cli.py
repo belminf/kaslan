@@ -8,6 +8,7 @@ import getpass
 import yaml
 import socket
 import os
+import fileinput
 
 
 def get_config(path_list):
@@ -36,7 +37,8 @@ def main():
     parser.add_argument('-u', dest='vcenter_user', help='Override vCenter user', default=getpass.getuser())
     parser.add_argument('--host', dest='vcenter_host', help='Override vCenter host', default=config['vcenter_host'])
     parser.add_argument('--port', dest='vcenter_port', help='Override vCenter port', default=config['vcenter_port'])
-    subparsers = parser.add_subparsers()
+    subparsers = parser.add_subparsers(dest='cmd')
+
     # Stdin oarser
     parser_stdin = subparsers.add_parser('input', help='Process commands from input')
     parser_stdin.add_argument('filenames', help='files to use instead of stdin', nargs='*')
@@ -121,7 +123,12 @@ def main():
 
     # Parse arguments
     args = parser.parse_args()
-    args.func(args, config)
+    if args.cmd == 'input':
+        for line in fileinput.input(args.filenames):
+            args = parser.parse_args(line.split())
+            args.func(args, config)
+    else:
+        args.func(args, config)
     print ''
 
 
