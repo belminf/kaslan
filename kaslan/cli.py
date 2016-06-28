@@ -125,15 +125,21 @@ def main():
     print ''
 
 
+# Global variable of VMware object
+_vmware = None
+
+
 def get_vmware(args, config):
-    vmware = VMware(
-        host=args.vcenter_host,
-        port=args.vcenter_port,
-        user=args.vcenter_user,
-        password=getpass.getpass('{}@{}: '.format(args.vcenter_user, args.vcenter_host))
-    )
+    global _vmware
+    if not _vmware:
+        _vmware = VMware(
+            host=args.vcenter_host,
+            port=args.vcenter_port,
+            user=args.vcenter_user,
+            password=getpass.getpass('{}@{}: '.format(args.vcenter_user, args.vcenter_host))
+        )
     print ''
-    return vmware
+    return _vmware
 
 
 def destroy(args, config):
