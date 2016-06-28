@@ -37,9 +37,12 @@ def main():
     parser.add_argument('--host', dest='vcenter_host', help='Override vCenter host', default=config['vcenter_host'])
     parser.add_argument('--port', dest='vcenter_port', help='Override vCenter port', default=config['vcenter_port'])
     subparsers = parser.add_subparsers()
+    # Stdin oarser
+    parser_stdin = subparsers.add_parser('input', help='Process commands from input')
+    parser_stdin.add_argument('filenames', help='files to use instead of stdin', nargs='*')
 
     # Clone parser
-    parser_clone = subparsers.add_parser('clone')
+    parser_clone = subparsers.add_parser('clone', help='Clone a VM')
     parser_clone.set_defaults(func=clone)
 
     # Clone: arguments
@@ -61,7 +64,7 @@ def main():
     parser_clone_opts.add_argument('--force', help='ignore pre-checks like ping test', action='store_true', default=False)
 
     # Memory parser
-    parser_memory = subparsers.add_parser('memory')
+    parser_memory = subparsers.add_parser('memory', help='Manage VM memory')
     parser_memory.set_defaults(func=memory)
 
     # Memory: arguments
@@ -73,7 +76,7 @@ def main():
     parser_memory_opts.add_argument('--add', '-a', dest='memory_add', metavar='GB', type=float, help='add memory (GB)')
 
     # CPUs parser
-    parser_cpus = subparsers.add_parser('cpus')
+    parser_cpus = subparsers.add_parser('cpus', help='Manage VM CPU')
     parser_cpus.set_defaults(func=cpus)
 
     # CPUs: arguments
@@ -85,7 +88,7 @@ def main():
     parser_cpus_opts.add_argument('--add', '-a', dest='cpus_add', metavar='COUNT', type=int, help='add cpus')
 
     # Disks parser
-    parser_disks = subparsers.add_parser('disks')
+    parser_disks = subparsers.add_parser('disks', help='Manage VM disks')
     parser_disks.set_defaults(func=disks)
 
     # Disks: arguments
@@ -97,7 +100,7 @@ def main():
     parser_disks_opts.add_argument('--add', '-a', dest='disks_add', metavar='COUNT', type=int, help='add disks')
 
     # Status parser
-    parser_status = subparsers.add_parser('status')
+    parser_status = subparsers.add_parser('status', help='Get VM information')
     parser_status.set_defaults(func=status)
 
     # Status: arguments
@@ -109,7 +112,7 @@ def main():
     parser_status_opts.add_argument('--add', '-a', dest='status_add', metavar='COUNT', type=int, help='add status')
 
     # Destroy parser
-    parser_destroy = subparsers.add_parser('destroy')
+    parser_destroy = subparsers.add_parser('destroy', help='Delete a VM')
     parser_destroy.set_defaults(func=destroy)
 
     # Destroy: arguments
