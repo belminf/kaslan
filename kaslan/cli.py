@@ -223,10 +223,18 @@ def clone(args, config):
         raise CLIException('IP address {} is responding to ping, use --force to ignore ping response'.format(args.ip))
 
     # Get network settings
-    try:
-        net_settings = next((s for c, s in config['networks'].iteritems() if IPAddress(args.ip) in IPNetwork(c)))
-    except StopIteration:
-        raise CLIException('Network {} not configured in kaslan.yaml'.format(args.ip))
+    net_settings = None
+    for n, s in config['networks'].iteritems():
+        if IPAddress(args.ip) not in IPNetwork(n):
+            continue
+
+        net_settings = s
+        net_settings['subnet'] = str(IPNetwork(n).netmask)
+        break
+
+    print net_settings
+    if not net_settings:
+        raise CLIException('Network for {} not configured in kaslan.yaml'.format(args.ip))
 
     # Get template name from alias
     if not args.no_template_alias:
