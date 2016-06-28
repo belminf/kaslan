@@ -248,9 +248,13 @@ def clone(args, config):
         net_settings['subnet'] = str(IPNetwork(n).netmask)
         break
 
-    print net_settings
+    # Check if settings set
     if not net_settings:
         raise CLIException('Network for {} not configured in kaslan.yaml'.format(args.ip))
+
+    # Check if all settings are given
+    if not all(k in net_settings for k in ('subnet', 'gateway', 'dns')):
+        raise CLIException('Network for {} missing settings in kaslan.yaml'.format(args.ip))
 
     # Get template name from alias
     if not args.no_template_alias:
