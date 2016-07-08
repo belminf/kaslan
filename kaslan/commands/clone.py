@@ -5,7 +5,7 @@ import socket
 import os
 
 
-def cli(subparsers, config):
+def cli_setup(subparsers, config):
     # Clone parser
     parser = subparsers.add_parser('clone', help='Clone a VM')
     parser.set_defaults(func=func)
