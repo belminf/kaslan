@@ -1,6 +1,6 @@
 from kaslan import __description__
 from kaslan.exceptions import CLIException
-from kaslan.commands import clone, datastore, memory, cpus, disks, status, destroy
+from kaslan.commands import clone, datastore, compute, disks, status, destroy
 from argparse import ArgumentParser
 from os.path import expanduser
 import getpass
@@ -41,7 +41,7 @@ def main():
     parser_stdin.add_argument('filenames', help='files to use instead of stdin', nargs='*')
 
     # Command parsers
-    for cmd in (datastore, clone, memory, cpus, disks, status, destroy):
+    for cmd in (datastore, clone, compute, disks, status, destroy):
         cmd.cli_setup(subparsers, config)
 
     # Parse arguments

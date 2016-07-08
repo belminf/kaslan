@@ -57,6 +57,20 @@ class VMware(object):
             obj_filter=vlan_host_filter
         )['obj']
 
+    def new_start_task(self, task, task_tag=''):
+
+        if task_tag:
+            task_tag = '[{}] '.format(task_tag)
+
+        task.wait(
+            queued=lambda t: sys.stdout.write('{}Queued...\n'.format(task_tag)),
+            running=lambda t: sys.stdout.write('{}Running...\n'.format(task_tag)),
+            success=lambda t: sys.stdout.write('{}Completed.\n\n'.format(task_tag)),
+            error=lambda t: sys.stdout.write('{}Error!\n\n'.format(task_tag))
+        )
+
+        return True
+
     def start_task(self, task, success_msg, task_tag='', hint_msg=None, last_task=True):
         pre_result = '\n'
         if task_tag:
@@ -142,66 +156,25 @@ class VMware(object):
             else:
                 raise VMwareException('Unable to find {} objects that match filter'.format(obj_type))
 
-    def add_memory(self, vm_name, add_gb):
-        vm = self.get_obj_props(
-            obj_names=(vm_name, ),
-            prop_names=('config.hardware.memoryMB', 'config.hardware.numCPU', )
-        )
+    def set_compute(self, vm_name, memory_mb, cpu_count):
 
-        # Need MB (long) and GB value
-        new_mb = long(vm['config.hardware.memoryMB'] + (add_gb * 1024))
-        new_gb = new_mb / 1024
+        vm_obj = self.get_object(vim.VirtualMachine, vm_name)
 
         spec = vim.vm.ConfigSpec()
-        spec.memoryMB = new_mb
-        spec.numCPUs = vm['config.hardware.numCPU']
+        spec.memoryMB = long(memory_mb)
+        spec.numCPUs = int(cpu_count)
 
-        self.start_task(
-            vm['obj'].ReconfigVM_Task(spec=spec),
-            success_msg='{} memory now: {:.1f}GB'.format(vm_name, new_gb),
-            hint_msg='Hot plug memory may be disabled or limited (see: http://kb.vmware.com/kb/2008405)'
+        self.new_start_task(vm_obj.ReconfigVM_Task(spec=spec))
+
+    def get_compute(self, vm_name):
+        resource_props = (
+            'config.hardware.memoryMB',
+            'config.hardware.numCPU'
         )
 
-    def get_memory(self, vm_name):
-        vm = self.get_obj_props(
-            obj_names=(vm_name, ),
-            prop_names=('config.hardware.memoryMB', )
-        )
-        print(
-            '{} memory: {:.1f}GB'.format(
-                vm_name,
-                vm['config.hardware.memoryMB'] / 1024
-            )
-        )
+        vm = self.get_obj_props(obj_names=(vm_name,), prop_names=resource_props)
 
-    def add_cpus(self, vm_name, add_cpu_count):
-        vm = self.get_obj_props(
-            obj_names=(vm_name, ),
-            prop_names=('config.hardware.memoryMB', 'config.hardware.numCPU', )
-        )
-
-        new_cpu_count = vm['config.hardware.numCPU'] + add_cpu_count
-
-        spec = vim.vm.ConfigSpec()
-        spec.memoryMB = vm['config.hardware.memoryMB']
-        spec.numCPUs = new_cpu_count
-
-        self.start_task(
-            vm['obj'].ReconfigVM_Task(spec=spec),
-            success_msg='{} CPU count now: {}'.format(vm_name, new_cpu_count)
-        )
-
-    def get_cpus(self, vm_name):
-        vm = self.get_obj_props(
-            obj_names=(vm_name, ),
-            prop_names=('config.hardware.numCPU', )
-        )
-        print(
-            '{} CPU count: {}'.format(
-                vm_name,
-                vm['config.hardware.numCPU']
-            )
-        )
+        return (vm[r] for r in resource_props)
 
     def get_disks(self, vm_name):
         vm = self.get_obj_props(
