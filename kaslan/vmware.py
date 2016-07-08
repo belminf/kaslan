@@ -1,6 +1,5 @@
 import atexit
 import sys
-import re
 
 from tzlocal import get_localzone
 from pyVim.connect import SmartConnect, Disconnect, GetSi
@@ -34,63 +33,6 @@ class VMware(object):
             return next((c for c in container.view if c.name == name))
         except StopIteration:
             raise VMwareException('Unable to find {} ({})'.format(name, types))
-
-    def get_folder(self, path):
-        current_folder = None
-        for f in path.split('/'):
-            current_folder = self.get_object(vim.Folder, f, root=current_folder)
-        return current_folder
-
-    def get_portgroup(self, vlan, host):
-        def vlan_host_filter(props):
-
-            # If host is in this network's host, return whether the vlan matches
-            if host in (h.name for h in props['host']):
-                return props['config.defaultPortConfig'].vlan.vlanId == vlan
-
-            # Fallback to false
-            return False
-
-        return self.get_obj_props(
-            prop_names=('host', 'config.defaultPortConfig'),
-            obj_type=vim.dvs.DistributedVirtualPortgroup,
-            obj_filter=vlan_host_filter
-        )['obj']
-
-    def new_start_task(self, task, task_tag=''):
-
-        if task_tag:
-            task_tag = '[{}] '.format(task_tag)
-
-        task.wait(
-            queued=lambda t: sys.stdout.write('{}Queued...\n'.format(task_tag)),
-            running=lambda t: sys.stdout.write('{}Running...\n'.format(task_tag)),
-            success=lambda t: sys.stdout.write('{}Completed.\n\n'.format(task_tag)),
-            error=lambda t: sys.stdout.write('{}Error!\n\n'.format(task_tag))
-        )
-
-        return True
-
-    def start_task(self, task, success_msg, task_tag='', hint_msg=None, last_task=True):
-        pre_result = '\n'
-        if task_tag:
-            task_tag = '[{}] '.format(task_tag)
-            pre_result = ''
-        try:
-            task.wait(
-                queued=lambda t: sys.stdout.write('{}Queued...\n'.format(task_tag)),
-                running=lambda t: sys.stdout.write('{}Running...\n'.format(task_tag)),
-                success=lambda t: sys.stdout.write('{}{}{}\n'.format(pre_result, task_tag, success_msg)),
-                error=lambda t: sys.stdout.write('{}{}Error!\n'.format(pre_result, task_tag))
-            )
-
-        except Exception as e:
-            print '\nException: {}'.format(e.msg)
-            if hint_msg:
-                print 'Hint: {}'.format(hint_msg)
-            return False
-
-        return True
 
     def get_obj_props(self, prop_names, obj_type=vim.VirtualMachine, obj_names=None, obj_filter=None, only_one=True):
 
@@ -155,6 +97,64 @@ class VMware(object):
                 return objs_and_props
             else:
                 raise VMwareException('Unable to find {} objects that match filter'.format(obj_type))
+
+    def get_folder(self, path):
+        current_folder = None
+        for f in path.split('/'):
+            current_folder = self.get_object(vim.Folder, f, root=current_folder)
+        return current_folder
+
+    def get_portgroup(self, vlan, host):
+        def vlan_host_filter(props):
+
+            # If host is in this network's host, return whether the vlan matches
+            if host in (h.name for h in props['host']):
+                return props['config.defaultPortConfig'].vlan.vlanId == vlan
+
+            # Fallback to false
+            return False
+
+        return self.get_obj_props(
+            prop_names=('host', 'config.defaultPortConfig'),
+            obj_type=vim.dvs.DistributedVirtualPortgroup,
+            obj_filter=vlan_host_filter
+        )['obj']
+
+    def new_start_task(self, task, task_tag=''):
+
+        if task_tag:
+            task_tag = '[{}] '.format(task_tag)
+
+        task.wait(
+            queued=lambda t: sys.stdout.write('{}Queued...\n'.format(task_tag)),
+            running=lambda t: sys.stdout.write('{}Running...\n'.format(task_tag)),
+            success=lambda t: sys.stdout.write('{}Completed.\n\n'.format(task_tag)),
+            error=lambda t: sys.stdout.write('{}Error!\n\n'.format(task_tag))
+        )
+
+        return True
+
+    def start_task(self, task, success_msg, task_tag='', hint_msg=None, last_task=True):
+        pre_result = '\n'
+        if task_tag:
+            task_tag = '[{}] '.format(task_tag)
+            pre_result = ''
+        try:
+            task.wait(
+                queued=lambda t: sys.stdout.write('{}Queued...\n'.format(task_tag)),
+                running=lambda t: sys.stdout.write('{}Running...\n'.format(task_tag)),
+                success=lambda t: sys.stdout.write('{}{}{}\n'.format(pre_result, task_tag, success_msg)),
+                error=lambda t: sys.stdout.write('{}{}Error!\n'.format(pre_result, task_tag))
+            )
+
+        except Exception as e:
+            print '\nException: {}'.format(e.msg)
+            if hint_msg:
+                print 'Hint: {}'.format(hint_msg)
+            return False
+
+        return True
+
 
     def set_compute(self, vm_name, memory_mb, cpu_count):
 
