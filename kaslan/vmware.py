@@ -1,5 +1,6 @@
 import atexit
 import sys
+import re
 
 from tzlocal import get_localzone
 from pyVim.connect import SmartConnect, Disconnect, GetSi
@@ -118,7 +119,7 @@ class VMware(object):
             properties = {prop.name: prop.val for prop in obj.propSet}
 
             # If it fails filter, skip
-            if not obj_filter(properties):
+            if obj_filter and not obj_filter(properties):
                 continue
 
             # Return this one with obj
@@ -218,6 +219,126 @@ class VMware(object):
                 datastore = device.backing.fileName
                 print '{}) {} - {:.1f}GB{}'.format(disk_index, datastore, size_gb, thin_prov)
 
+    def human_readable_b(self, bytes):
+        for item in ['bytes', 'KB', 'MB', 'GB']:
+            if bytes < 1024.0:
+                return "%3.1f%s" % (bytes, item)
+            bytes /= 1024.0
+        return "%3.1f%s" % (bytes, 'TB')
+
+    def get_cluster_datastores(self, cluster, ds_prefix):
+        cluster_datastores = self.get_obj_props(
+            obj_names=(cluster,),
+            prop_names=(
+                'datastore',
+            ),
+            obj_type=vim.ClusterComputeResource,
+            only_one=True
+        )
+
+        for ds in cluster_datastores['datastore']:
+            if not ds.summary.name.startswith(ds_prefix):
+                continue
+
+            space_free = self.human_readable_b(ds.summary.freeSpace or 0)
+            space_total = self.human_readable_b(ds.summary.capacity)
+            space_overprov = (ds.summary.uncommitted or 0) - (ds.summary.freeSpace or 0)
+            percent_prov = ((ds.summary.capacity + space_overprov) / float(ds.summary.capacity)) * 100
+
+            print '======================'
+            print 'Name: {}'.format(ds.summary.name)
+            print 'Space free: {}/{}'.format(space_free, space_total)
+            print 'Space provisioned: {:.2f}%'.format(percent_prov)
+            print 'VM count: {}'.format(len(ds.vm))
+
+    def summarize_cluster_datastores(self, cluster, ds_prefix):
+        cluster_datastores = self.get_obj_props(
+            obj_names=(cluster,),
+            prop_names=(
+                'datastore',
+            ),
+            obj_type=vim.ClusterComputeResource,
+            only_one=True
+        )
+
+        ds_prefixes = []
+        for ds in cluster_datastores['datastore']:
+
+            # Skip anything not matching prefix
+            if not ds.summary.name.startswith(ds_prefix):
+                print ds.summary.name
+                continue
+
+            # Strip numbers dashes and undercores from end
+            this_prefix = ds.summary.name.rstrip('._-1234567890')
+            if this_prefix not in ds_prefixes:
+                ds_prefixes.append(this_prefix)
+
+        if len(ds_prefixes) == 0:
+            print 'No prefixes detected'
+        else:
+            print 'Datastore prefixes detected:'
+            for ds in sorted(ds_prefixes):
+                print '- {}'.format(ds)
+
+    def get_a_datastore(self, cluster, ds_prefix, prov_limit, vm_limit):
+        cluster_datastores = self.get_obj_props(
+            obj_names=(cluster,),
+            prop_names=(
+                'datastore',
+            ),
+            obj_type=vim.ClusterComputeResource,
+            only_one=True
+        )
+        acceptable_ds = []
+        for ds in cluster_datastores['datastore']:
+
+            # Get name and check if it has prefix
+            ds_name = ds.summary.name
+            if not ds_name.startswith(ds_prefix):
+                continue
+
+            # Get VM count and only continue if under limit
+            vm_count = len(ds.vm)
+            if vm_count >= vm_limit:
+                continue
+
+            # Getting free space now since used for later calc
+            free_space = ds.summary.freeSpace or 0
+
+            # Calculate provision percentage
+            prov_space = (ds.summary.uncommitted or 0) - free_space
+            prov_perc = ((ds.summary.capacity + prov_space) / float(ds.summary.capacity)) * 100
+            if prov_perc >= prov_limit:
+                continue
+
+            # ASSERT: meets limits
+
+            acceptable_ds.append({
+                'name': ds_name,
+                'vm_count': vm_count,
+                'free_space': free_space,
+                'prov_perc': prov_perc,
+            })
+
+        #  Check if we found a datastore
+        if not len(acceptable_ds):
+            raise VMwareException(
+                'Could not find a {} datastore with {} perfix that has less than {} VMs and is under {:.0f}% provisioned '.format(
+                    cluster,
+                    ds_prefix,
+                    vm_limit,
+                    prov_limit
+                )
+            )
+
+        # Get DS with highest free space
+        highest_free = sorted(acceptable_ds, key=lambda ds: ds['free_space'])[0]['name']
+        return highest_free
+
+    def verify_datastore(self, cluster, ds):
+        pass
+
     def get_status(self, vm_name):
         vm = self.get_obj_props(
             obj_names=(vm_name, ),
@@ -269,7 +390,7 @@ class VMware(object):
         memory,
         datacenter_name,
         cluster_name,
-        datastore_name,
+        ds_name,
         ip,
         domain,
         dns,
@@ -283,7 +404,7 @@ class VMware(object):
         # Find objects
         datacenter = self.get_object(vim.Datacenter, datacenter_name)
         cluster = self.get_object(vim.ClusterComputeResource, cluster_name)
-        datastore = self.get_object(vim.Datastore, datastore_name)
+        datastore = self.get_object(vim.Datastore, ds_name)
         template_vm = self.get_object(vim.VirtualMachine, template_name)
 
         # Get folder, defaults to datacenter

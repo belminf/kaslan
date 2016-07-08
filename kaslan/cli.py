@@ -50,13 +50,16 @@ def main():
     # Clone: arguments
     parser_clone_args = parser_clone.add_argument_group('cloning arguments')
     parser_clone_args.add_argument('template', help='template')
-    parser_clone_args.add_argument('datastore_name', help='datastore')
     parser_clone_args.add_argument('vm_name', help='name of new VM')
 
     # Clone: options
     parser_clone_opts = parser_clone.add_argument_group('cloning optional overrides')
     parser_clone_opts.add_argument('--datacenter', dest='datacenter_name', help='datacenter', default=config['defaults']['datacenter'])
     parser_clone_opts.add_argument('--cluster', dest='cluster_name', help='cluster', default=config['defaults']['cluster'])
+    parser_clone_opts.add_argument('--ds', dest='ds_name', help='datastore name (required if --ds_prefix not provided)')
+    parser_clone_opts.add_argument('--ds_prefix', dest='ds_prefix', help='datastore prefix (required if --ds not provided)')
+    parser_clone_opts.add_argument('--ds_prov_limit', dest='ds_prov_limit', help='datastore provision percentage limit (used with --ds_prefix)', default=config['defaults']['ds_prov_limit'])
+    parser_clone_opts.add_argument('--ds_vm_limit', dest='ds_vm_limit', help='datastore VM limit (used with --ds_prefix)', default=config['defaults']['ds_vm_limit'])
     parser_clone_opts.add_argument('--folder', dest='folder_path', help='folder path, with / delimiter', default=config['defaults'].get('folder'))
     parser_clone_opts.add_argument('--ip', help='IP address for VM, defaults to DNS lookup of vm_name', default=None)
     parser_clone_opts.add_argument('--cpus', '-c', metavar='COUNT', help='CPU count for VM', type=int, default=config['defaults']['cpus'])
@@ -64,6 +67,13 @@ def main():
     parser_clone_opts.add_argument('--domain', '-d', help='domain', default=config['defaults']['domain'])
     parser_clone_opts.add_argument('--no-template-alias', help='allow the use of a template whose alias is not configured', action='store_true', default=False)
     parser_clone_opts.add_argument('--force', help='ignore pre-checks like ping test', action='store_true', default=False)
+
+    # Datastore parser
+    parser_datastore = subparsers.add_parser('datastore', help='Manage datastores')
+    parser_datastore.add_argument('cluster_name', help='cluster')
+    parser_datastore.add_argument('--prefix', '-p', dest='ds_prefix', help='datastore prefixes to filter', default='')
+    parser_datastore.add_argument('--summary', '-s', dest='ds_sum_prefixes', help='summarize datastore prefixes', action='store_true', default=False)
+    parser_datastore.set_defaults(func=datastore)
 
     # Memory parser
     parser_memory = subparsers.add_parser('memory', help='Manage VM memory')
@@ -224,11 +234,26 @@ def cpus(args, config):
         vmware.get_cpus(args.vm_name)
 
 
+def datastore(args, config):
+
+    # Get VMware
+    vmware = get_vmware(args, config)
+
+    if args.ds_sum_prefixes:
+        vmware.summarize_cluster_datastores(args.cluster_name, args.ds_prefix)
+    else:
+        vmware.get_cluster_datastores(args.cluster_name, args.ds_prefix)
+
+
 def clone(args, config):
 
     # Normalize some arguments
     args.vm_name = args.vm_name.lower()
     args.domain = args.domain.lower()
+
+    # Check if we have a datastore
+    if not any((args.ds_name, args.ds_prefix)):
+        raise CLIException('Require to specify datastore using either --ds or --ds_prefix')
 
     # Get IP address from name if not provided
     if not args.ip:
@@ -267,6 +292,14 @@ def clone(args, config):
 
     # Get VMware
     vmware = get_vmware(args, config)
+    if not args.ds_name:
+        args.ds_name = vmware.get_a_datastore(
+            args.cluster_name,
+            args.ds_prefix,
+            args.ds_prov_limit,
+            args.ds_vm_limit
+        )
+        print 'Using datastore {}...'.format(args.ds_name)
 
     # Perform the clone
     vmware.clone(
