@@ -98,6 +98,79 @@ class VMware(object):
             else:
                 raise VMwareException('Unable to find {} objects that match filter'.format(obj_type))
 
+    # obj_names could be used instead of obj_filter
+    # if obj_filter provided, obj_names will be ignored
+    def get_obj(self, prop_names=None, obj_type=vim.VirtualMachine, obj_names=None, obj_filter=None, only_one=True, root=None):
+
+        # Setup defaults
+        if prop_names is None:
+            prop_names = ()
+        if root is None:
+            root = self.content.rootFolder
+
+        # Setup filter
+        if not obj_filter and obj_names:
+            obj_filter = lambda props: props['name'] in obj_names
+
+        # Starting point
+        obj_spec = vmodl.query.PropertyCollector.ObjectSpec()
+        obj_spec.obj = self.content.viewManager.CreateContainerView(root, [obj_type, ], True)
+        obj_spec.skip = True
+
+        # Define path for search
+        traversal_spec = vmodl.query.PropertyCollector.TraversalSpec()
+        traversal_spec.type = obj_spec.obj.__class__
+        traversal_spec.name = 'traversing'
+        traversal_spec.path = 'view'
+        traversal_spec.skip = False
+        obj_spec.selectSet = [traversal_spec]
+
+        # Identify the properties to the retrieved
+        property_spec = vmodl.query.PropertyCollector.PropertySpec()
+        property_spec.type = obj_type
+        property_spec.all = False
+        property_spec.pathSet = list(set(tuple(prop_names) + ('name', )))
+
+        # Create filter specification
+        filter_spec = vmodl.query.PropertyCollector.FilterSpec()
+        filter_spec.objectSet = [obj_spec]
+        filter_spec.propSet = [property_spec]
+
+        # Retrieve properties
+        collector = self.session.content.propertyCollector
+        objs = collector.RetrieveContents([filter_spec])
+
+        # Filter objects
+        objs_and_props = []
+        for obj in objs:
+
+            # Compile propeties
+            properties = {prop.name: prop.val for prop in obj.propSet}
+
+            # If it fails filter, skip
+            if obj_filter and not obj_filter(properties):
+                continue
+
+            # Return this one with obj
+            properties['obj'] = obj.obj
+            objs_and_props.append(properties)
+
+        # If we only need one object, return first
+        if only_one:
+            if len(objs_and_props) == 1:
+                return objs_and_props[0]
+            elif len(objs_and_props) > 1:
+                raise VMwareException('Found multiple {} objects that match filter'.format(obj_type))
+            else:
+                raise VMwareException('Could not find {} object that matches filter'.format(obj_type))
+
+        # If we are okay with more, then return whole
+        else:
+            if len(objs_and_props):
+                return objs_and_props
+            else:
+                raise VMwareException('Unable to find {} objects that match filter'.format(obj_type))
+
     def get_folder(self, path):
         current_folder = None
         for f in path.split('/'):
@@ -154,7 +227,6 @@ class VMware(object):
             return False
 
         return True
-
 
     def set_compute(self, vm_name, memory_mb, cpu_count):
 
