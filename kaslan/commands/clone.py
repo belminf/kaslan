@@ -80,7 +80,7 @@ def func(args, config):
     # Get VMware
     vmware = get_vmware(args, config)
     if not args.ds_name:
-        args.ds_name = vmware.get_a_datastore(
+        args.ds_name = vmware.choose_a_datastore(
             args.cluster_name,
             args.ds_prefix,
             args.ds_prov_limit,

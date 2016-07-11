@@ -252,7 +252,7 @@ class VMware(object):
             for ds in sorted(ds_prefixes):
                 print '- {}'.format(ds)
 
-    def get_a_datastore(self, cluster, ds_prefix, prov_limit, vm_limit):
+    def choose_a_datastore(self, cluster, ds_prefix, prov_limit, vm_limit):
         cluster_datastores = self.get_obj(
             obj_names=(cluster,),
             prop_names=(
