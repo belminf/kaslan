@@ -106,9 +106,9 @@ class VMware(object):
     def get_portgroup(self, vlan, host):
         def vlan_host_filter(props):
 
-            # If host is in this network's host, return whether the vlan matches
+            # If host is in this portgroup's collection of host, grab it if the vlan matches
             if host in (h.name for h in props['host']):
-                return props['config.defaultPortConfig'].vlan.vlanId == vlan
+                return (props['config.defaultPortConfig'].vlan.vlanId == vlan)
 
             # Fallback to false
             return False
