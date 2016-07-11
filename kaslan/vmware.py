@@ -23,69 +23,6 @@ class VMware(object):
         atexit.register(Disconnect, self.session)
         self.content = self.session.RetrieveContent()
 
-    def get_obj_props(self, prop_names, obj_type=vim.VirtualMachine, obj_names=None, obj_filter=None, only_one=True):
-
-        # Setup filter
-        if not obj_filter and obj_names:
-            obj_filter = lambda props: props['name'] in obj_names
-
-        # Starting point
-        obj_spec = vmodl.query.PropertyCollector.ObjectSpec()
-        obj_spec.obj = self.content.viewManager.CreateContainerView(self.content.rootFolder, [obj_type, ], True)
-        obj_spec.skip = True
-
-        # Define path for search
-        traversal_spec = vmodl.query.PropertyCollector.TraversalSpec()
-        traversal_spec.name = 'traversing'
-        traversal_spec.path = 'view'
-        traversal_spec.skip = False
-        traversal_spec.type = obj_spec.obj.__class__
-        obj_spec.selectSet = [traversal_spec]
-
-        # Identify the properties to the retrieved
-        property_spec = vmodl.query.PropertyCollector.PropertySpec()
-        property_spec.type = obj_type
-        property_spec.pathSet = list(set(tuple(prop_names) + ('name', )))
-
-        # Create filter specification
-        filter_spec = vmodl.query.PropertyCollector.FilterSpec()
-        filter_spec.objectSet = [obj_spec]
-        filter_spec.propSet = [property_spec]
-
-        # Retrieve properties
-        collector = self.session.content.propertyCollector
-        objs = collector.RetrieveContents([filter_spec])
-
-        # Filter objects
-        objs_and_props = []
-        for obj in objs:
-
-            # Compile propeties
-            properties = {prop.name: prop.val for prop in obj.propSet}
-
-            # If it fails filter, skip
-            if obj_filter and not obj_filter(properties):
-                continue
-
-            # Return this one with obj
-            properties['obj'] = obj.obj
-            objs_and_props.append(properties)
-
-        # If we only need one object, return first
-        if only_one:
-            if len(objs_and_props) == 1:
-                return objs_and_props[0]
-            elif len(objs_and_props) > 1:
-                raise VMwareException('Found multiple {} objects that match filter'.format(obj_type))
-            else:
-                raise VMwareException('Could not find {} object that matches filter'.format(obj_type))
-
-        # If we are okay with more, then return whole
-        else:
-            if len(objs_and_props):
-                return objs_and_props
-            else:
-                raise VMwareException('Unable to find {} objects that match filter'.format(obj_type))
 
     # obj_names could be used instead of obj_filter
     # if obj_filter provided, obj_names will be ignored
@@ -176,7 +113,7 @@ class VMware(object):
             # Fallback to false
             return False
 
-        return self.get_obj_props(
+        return self.get_obj(
             prop_names=('host', 'config.defaultPortConfig'),
             obj_type=vim.dvs.DistributedVirtualPortgroup,
             obj_filter=vlan_host_filter
@@ -233,12 +170,12 @@ class VMware(object):
             'config.hardware.numCPU'
         )
 
-        vm = self.get_obj_props(obj_names=(vm_name,), prop_names=resource_props)
+        vm = self.get_obj(obj_names=(vm_name,), prop_names=resource_props)
 
         return (vm[r] for r in resource_props)
 
     def get_disks(self, vm_name):
-        vm = self.get_obj_props(
+        vm = self.get_obj(
             obj_names=(vm_name, ),
             prop_names=('config.hardware.device', )
         )
@@ -261,7 +198,7 @@ class VMware(object):
         return "%3.1f%s" % (bytes, 'TB')
 
     def get_cluster_datastores(self, cluster, ds_prefix):
-        cluster_datastores = self.get_obj_props(
+        cluster_datastores = self.get_obj(
             obj_names=(cluster,),
             prop_names=(
                 'datastore',
@@ -286,7 +223,7 @@ class VMware(object):
             print 'VM count: {}'.format(len(ds.vm))
 
     def summarize_cluster_datastores(self, cluster, ds_prefix):
-        cluster_datastores = self.get_obj_props(
+        cluster_datastores = self.get_obj(
             obj_names=(cluster,),
             prop_names=(
                 'datastore',
@@ -316,7 +253,7 @@ class VMware(object):
                 print '- {}'.format(ds)
 
     def get_a_datastore(self, cluster, ds_prefix, prov_limit, vm_limit):
-        cluster_datastores = self.get_obj_props(
+        cluster_datastores = self.get_obj(
             obj_names=(cluster,),
             prop_names=(
                 'datastore',
@@ -374,7 +311,7 @@ class VMware(object):
         pass
 
     def get_status(self, vm_name):
-        vm = self.get_obj_props(
+        vm = self.get_obj(
             obj_names=(vm_name, ),
             prop_names=(
                 'config.hardware.numCPU',
@@ -404,7 +341,7 @@ class VMware(object):
             print 'Last Boot   : {}'.format(boot_time)
 
     def destroy(self, vm_name):
-        vm = self.get_obj_props(
+        vm = self.get_obj(
             obj_names=(vm_name, ),
             prop_names=('runtime.powerState', )
         )
