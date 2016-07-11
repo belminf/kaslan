@@ -23,17 +23,6 @@ class VMware(object):
         atexit.register(Disconnect, self.session)
         self.content = self.session.RetrieveContent()
 
-    def get_object(self, types, name, root=None):
-        if not root:
-            root = self.content.rootFolder
-        type_list = types if isinstance(types, list) else [types]
-        container = self.content.viewManager.CreateContainerView(root, type_list, True)
-
-        try:
-            return next((c for c in container.view if c.name == name))
-        except StopIteration:
-            raise VMwareException('Unable to find {} ({})'.format(name, types))
-
     def get_obj_props(self, prop_names, obj_type=vim.VirtualMachine, obj_names=None, obj_filter=None, only_one=True):
 
         # Setup filter
@@ -174,7 +163,7 @@ class VMware(object):
     def get_folder(self, path):
         current_folder = None
         for f in path.split('/'):
-            current_folder = self.get_object(vim.Folder, f, root=current_folder)
+            current_folder = self.get_obj(obj_type=vim.Folder, obj_names=(f,), root=current_folder)['obj']
         return current_folder
 
     def get_portgroup(self, vlan, host):
@@ -230,7 +219,7 @@ class VMware(object):
 
     def set_compute(self, vm_name, memory_mb, cpu_count):
 
-        vm_obj = self.get_object(vim.VirtualMachine, vm_name)
+        vm_obj = self.get_obj(obj_names=(vm_name,))['obj']
 
         spec = vim.vm.ConfigSpec()
         spec.memoryMB = long(memory_mb)
@@ -447,23 +436,23 @@ class VMware(object):
         **kwargs
     ):
         # Find objects
-        datacenter = self.get_object(vim.Datacenter, datacenter_name)
-        cluster = self.get_object(vim.ClusterComputeResource, cluster_name)
-        datastore = self.get_object(vim.Datastore, ds_name)
-        template_vm = self.get_object(vim.VirtualMachine, template_name)
+        datacenter = self.get_obj(obj_type=vim.Datacenter, obj_names=(datacenter_name))
+        cluster = self.get_obj(obj_type=vim.ClusterComputeResource, obj_names=(cluster_name))
+        datastore = self.get_obj(obj_type=vim.Datastore, obj_names=(ds_name,))
+        template_vm = self.get_obj(obj_names=(template_name,))
 
         # Get folder, defaults to datacenter
         if folder_path:
             folder = self.get_folder(folder_path)
         else:
-            folder = datacenter.vmFolder
+            folder = datacenter['obj'].vmFolder
 
         # Default objects
-        resource_pool = cluster.resourcePool
+        resource_pool = cluster['obj'].resourcePool
 
         # Relocation specs
         relospec = vim.vm.RelocateSpec()
-        relospec.datastore = datastore
+        relospec.datastore = datastore['obj']
         relospec.pool = resource_pool
 
         # Configuration specs
@@ -508,7 +497,7 @@ class VMware(object):
         clonespec.template = False
 
         # Create task
-        task = template_vm.Clone(folder=folder, name=vm_name, spec=clonespec)
+        task = template_vm['obj'].Clone(folder=folder, name=vm_name, spec=clonespec)
         result = self.start_task(
             task,
             task_tag='Cloning',
@@ -521,16 +510,20 @@ class VMware(object):
             return
 
         # Change networking
-        vm = self.get_object(vim.VirtualMachine, vm_name)
+        vm_props = (
+            'runtime.host',
+            'config.hardware.device',
+        )
+        vm_obj = self.get_obj(obj_names=(vm_name,), prop_names=vm_props)
         vmconf = vim.vm.ConfigSpec()
 
         # Get right network
-        network = self.get_portgroup(vlan, vm.runtime.host.name)
+        network = self.get_portgroup(vlan, vm_obj['runtime.host'].name)
 
         # Modify NIC card
         nic = vim.vm.device.VirtualDeviceSpec()
         nic.operation = vim.vm.device.VirtualDeviceSpec.Operation.edit
-        for device in vm.config.hardware.device:
+        for device in vm_obj['config.hardware.device']:
             if isinstance(device, vim.vm.device.VirtualEthernetCard):
                 nic.device = device
                 break
@@ -546,7 +539,7 @@ class VMware(object):
         vmconf.deviceChange = [nic, ]
 
         # Start task
-        task = vm.ReconfigVM_Task(vmconf)
+        task = vm_obj['obj'].ReconfigVM_Task(vmconf)
         self.start_task(
             task,
             task_tag='Networking',
