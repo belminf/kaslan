@@ -36,7 +36,7 @@ def func(args, config):
     if args.memory_add:
         want_memory_mb += args.memory_add * 1024
     elif args.memory_set:
-        want_memory_mb = args.memory_set
+        want_memory_mb = args.memory_set * 1024
 
     # Get the new CPU count
     want_cpus = cpus
