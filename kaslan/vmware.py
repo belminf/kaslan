@@ -1,6 +1,5 @@
 import atexit
 import sys
-import re
 
 from tzlocal import get_localzone
 from pyVim.connect import SmartConnect, Disconnect, GetSi
@@ -24,61 +23,16 @@ class VMware(object):
         atexit.register(Disconnect, self.session)
         self.content = self.session.RetrieveContent()
 
-    def get_object(self, types, name, root=None):
-        if not root:
+
+    # obj_names could be used instead of obj_filter
+    # if obj_filter provided, obj_names will be ignored
+    def get_obj(self, prop_names=None, obj_type=vim.VirtualMachine, obj_names=None, obj_filter=None, only_one=True, root=None):
+
+        # Setup defaults
+        if prop_names is None:
+            prop_names = ()
+        if root is None:
             root = self.content.rootFolder
-        type_list = types if isinstance(types, list) else [types]
-        container = self.content.viewManager.CreateContainerView(root, type_list, True)
-
-        try:
-            return next((c for c in container.view if c.name == name))
-        except StopIteration:
-            raise VMwareException('Unable to find {} ({})'.format(name, types))
-
-    def get_folder(self, path):
-        current_folder = None
-        for f in path.split('/'):
-            current_folder = self.get_object(vim.Folder, f, root=current_folder)
-        return current_folder
-
-    def get_portgroup(self, vlan, host):
-        def vlan_host_filter(props):
-
-            # If host is in this network's host, return whether the vlan matches
-            if host in (h.name for h in props['host']):
-                return props['config.defaultPortConfig'].vlan.vlanId == vlan
-
-            # Fallback to false
-            return False
-
-        return self.get_obj_props(
-            prop_names=('host', 'config.defaultPortConfig'),
-            obj_type=vim.dvs.DistributedVirtualPortgroup,
-            obj_filter=vlan_host_filter
-        )['obj']
-
-    def start_task(self, task, success_msg, task_tag='', hint_msg=None, last_task=True):
-        pre_result = '\n'
-        if task_tag:
-            task_tag = '[{}] '.format(task_tag)
-            pre_result = ''
-        try:
-            task.wait(
-                queued=lambda t: sys.stdout.write('{}Queued...\n'.format(task_tag)),
-                running=lambda t: sys.stdout.write('{}Running...\n'.format(task_tag)),
-                success=lambda t: sys.stdout.write('{}{}{}\n'.format(pre_result, task_tag, success_msg)),
-                error=lambda t: sys.stdout.write('{}{}Error!\n'.format(pre_result, task_tag))
-            )
-
-        except Exception as e:
-            print '\nException: {}'.format(e.msg)
-            if hint_msg:
-                print 'Hint: {}'.format(hint_msg)
-            return False
-
-        return True
-
-    def get_obj_props(self, prop_names, obj_type=vim.VirtualMachine, obj_names=None, obj_filter=None, only_one=True):
 
         # Setup filter
         if not obj_filter and obj_names:
@@ -86,20 +40,21 @@ class VMware(object):
 
         # Starting point
         obj_spec = vmodl.query.PropertyCollector.ObjectSpec()
-        obj_spec.obj = self.content.viewManager.CreateContainerView(self.content.rootFolder, [obj_type, ], True)
+        obj_spec.obj = self.content.viewManager.CreateContainerView(root, [obj_type, ], True)
         obj_spec.skip = True
 
         # Define path for search
         traversal_spec = vmodl.query.PropertyCollector.TraversalSpec()
+        traversal_spec.type = obj_spec.obj.__class__
         traversal_spec.name = 'traversing'
         traversal_spec.path = 'view'
         traversal_spec.skip = False
-        traversal_spec.type = obj_spec.obj.__class__
         obj_spec.selectSet = [traversal_spec]
 
         # Identify the properties to the retrieved
         property_spec = vmodl.query.PropertyCollector.PropertySpec()
         property_spec.type = obj_type
+        property_spec.all = False
         property_spec.pathSet = list(set(tuple(prop_names) + ('name', )))
 
         # Create filter specification
@@ -142,69 +97,85 @@ class VMware(object):
             else:
                 raise VMwareException('Unable to find {} objects that match filter'.format(obj_type))
 
-    def add_memory(self, vm_name, add_gb):
-        vm = self.get_obj_props(
-            obj_names=(vm_name, ),
-            prop_names=('config.hardware.memoryMB', 'config.hardware.numCPU', )
+    def get_folder(self, path):
+        current_folder = None
+        for f in path.split('/'):
+            current_folder = self.get_obj(obj_type=vim.Folder, obj_names=(f,), root=current_folder)['obj']
+        return current_folder
+
+    def get_portgroup(self, vlan, host):
+        def vlan_host_filter(props):
+
+            # If host is in this portgroup's collection of host, grab it if the vlan matches
+            if host in (h.name for h in props['host']):
+                return (props['config.defaultPortConfig'].vlan.vlanId == vlan)
+
+            # Fallback to false
+            return False
+
+        return self.get_obj(
+            prop_names=('host', 'config.defaultPortConfig'),
+            obj_type=vim.dvs.DistributedVirtualPortgroup,
+            obj_filter=vlan_host_filter
+        )['obj']
+
+    def new_start_task(self, task, task_tag=''):
+
+        if task_tag:
+            task_tag = '[{}] '.format(task_tag)
+
+        task.wait(
+            queued=lambda t: sys.stdout.write('{}Queued...\n'.format(task_tag)),
+            running=lambda t: sys.stdout.write('{}Running...\n'.format(task_tag)),
+            success=lambda t: sys.stdout.write('{}Completed.\n\n'.format(task_tag)),
+            error=lambda t: sys.stdout.write('{}Error!\n\n'.format(task_tag))
         )
 
-        # Need MB (long) and GB value
-        new_mb = long(vm['config.hardware.memoryMB'] + (add_gb * 1024))
-        new_gb = new_mb / 1024
+        return True
+
+    def start_task(self, task, success_msg, task_tag='', hint_msg=None, last_task=True):
+        pre_result = '\n'
+        if task_tag:
+            task_tag = '[{}] '.format(task_tag)
+            pre_result = ''
+        try:
+            task.wait(
+                queued=lambda t: sys.stdout.write('{}Queued...\n'.format(task_tag)),
+                running=lambda t: sys.stdout.write('{}Running...\n'.format(task_tag)),
+                success=lambda t: sys.stdout.write('{}{}{}\n'.format(pre_result, task_tag, success_msg)),
+                error=lambda t: sys.stdout.write('{}{}Error!\n'.format(pre_result, task_tag))
+            )
+
+        except Exception as e:
+            print '\nException: {}'.format(e.msg)
+            if hint_msg:
+                print 'Hint: {}'.format(hint_msg)
+            return False
+
+        return True
+
+    def set_compute(self, vm_name, memory_mb, cpu_count):
+
+        vm_obj = self.get_obj(obj_names=(vm_name,))['obj']
 
         spec = vim.vm.ConfigSpec()
-        spec.memoryMB = new_mb
-        spec.numCPUs = vm['config.hardware.numCPU']
+        spec.memoryMB = long(memory_mb)
+        spec.numCPUs = int(cpu_count)
 
-        self.start_task(
-            vm['obj'].ReconfigVM_Task(spec=spec),
-            success_msg='{} memory now: {:.1f}GB'.format(vm_name, new_gb),
-            hint_msg='Hot plug memory may be disabled or limited (see: http://kb.vmware.com/kb/2008405)'
+        self.new_start_task(vm_obj.ReconfigVM_Task(spec=spec))
+
+    def get_compute(self, vm_name):
+        resource_props = (
+            'config.hardware.memoryMB',
+            'config.hardware.numCPU'
         )
 
-    def get_memory(self, vm_name):
-        vm = self.get_obj_props(
-            obj_names=(vm_name, ),
-            prop_names=('config.hardware.memoryMB', )
-        )
-        print(
-            '{} memory: {:.1f}GB'.format(
-                vm_name,
-                vm['config.hardware.memoryMB'] / 1024
-            )
-        )
+        vm = self.get_obj(obj_names=(vm_name,), prop_names=resource_props)
 
-    def add_cpus(self, vm_name, add_cpu_count):
-        vm = self.get_obj_props(
-            obj_names=(vm_name, ),
-            prop_names=('config.hardware.memoryMB', 'config.hardware.numCPU', )
-        )
-
-        new_cpu_count = vm['config.hardware.numCPU'] + add_cpu_count
-
-        spec = vim.vm.ConfigSpec()
-        spec.memoryMB = vm['config.hardware.memoryMB']
-        spec.numCPUs = new_cpu_count
-
-        self.start_task(
-            vm['obj'].ReconfigVM_Task(spec=spec),
-            success_msg='{} CPU count now: {}'.format(vm_name, new_cpu_count)
-        )
-
-    def get_cpus(self, vm_name):
-        vm = self.get_obj_props(
-            obj_names=(vm_name, ),
-            prop_names=('config.hardware.numCPU', )
-        )
-        print(
-            '{} CPU count: {}'.format(
-                vm_name,
-                vm['config.hardware.numCPU']
-            )
-        )
+        return (vm[r] for r in resource_props)
 
     def get_disks(self, vm_name):
-        vm = self.get_obj_props(
+        vm = self.get_obj(
             obj_names=(vm_name, ),
             prop_names=('config.hardware.device', )
         )
@@ -227,7 +198,7 @@ class VMware(object):
         return "%3.1f%s" % (bytes, 'TB')
 
     def get_cluster_datastores(self, cluster, ds_prefix):
-        cluster_datastores = self.get_obj_props(
+        cluster_datastores = self.get_obj(
             obj_names=(cluster,),
             prop_names=(
                 'datastore',
@@ -252,7 +223,7 @@ class VMware(object):
             print 'VM count: {}'.format(len(ds.vm))
 
     def summarize_cluster_datastores(self, cluster, ds_prefix):
-        cluster_datastores = self.get_obj_props(
+        cluster_datastores = self.get_obj(
             obj_names=(cluster,),
             prop_names=(
                 'datastore',
@@ -281,8 +252,8 @@ class VMware(object):
             for ds in sorted(ds_prefixes):
                 print '- {}'.format(ds)
 
-    def get_a_datastore(self, cluster, ds_prefix, prov_limit, vm_limit):
-        cluster_datastores = self.get_obj_props(
+    def choose_a_datastore(self, cluster, ds_prefix, prov_limit, vm_limit):
+        cluster_datastores = self.get_obj(
             obj_names=(cluster,),
             prop_names=(
                 'datastore',
@@ -340,7 +311,7 @@ class VMware(object):
         pass
 
     def get_status(self, vm_name):
-        vm = self.get_obj_props(
+        vm = self.get_obj(
             obj_names=(vm_name, ),
             prop_names=(
                 'config.hardware.numCPU',
@@ -370,7 +341,7 @@ class VMware(object):
             print 'Last Boot   : {}'.format(boot_time)
 
     def destroy(self, vm_name):
-        vm = self.get_obj_props(
+        vm = self.get_obj(
             obj_names=(vm_name, ),
             prop_names=('runtime.powerState', )
         )
@@ -402,23 +373,23 @@ class VMware(object):
         **kwargs
     ):
         # Find objects
-        datacenter = self.get_object(vim.Datacenter, datacenter_name)
-        cluster = self.get_object(vim.ClusterComputeResource, cluster_name)
-        datastore = self.get_object(vim.Datastore, ds_name)
-        template_vm = self.get_object(vim.VirtualMachine, template_name)
+        datacenter = self.get_obj(obj_type=vim.Datacenter, obj_names=(datacenter_name))
+        cluster = self.get_obj(obj_type=vim.ClusterComputeResource, obj_names=(cluster_name))
+        datastore = self.get_obj(obj_type=vim.Datastore, obj_names=(ds_name,))
+        template_vm = self.get_obj(obj_names=(template_name,))
 
         # Get folder, defaults to datacenter
         if folder_path:
             folder = self.get_folder(folder_path)
         else:
-            folder = datacenter.vmFolder
+            folder = datacenter['obj'].vmFolder
 
         # Default objects
-        resource_pool = cluster.resourcePool
+        resource_pool = cluster['obj'].resourcePool
 
         # Relocation specs
         relospec = vim.vm.RelocateSpec()
-        relospec.datastore = datastore
+        relospec.datastore = datastore['obj']
         relospec.pool = resource_pool
 
         # Configuration specs
@@ -463,7 +434,7 @@ class VMware(object):
         clonespec.template = False
 
         # Create task
-        task = template_vm.Clone(folder=folder, name=vm_name, spec=clonespec)
+        task = template_vm['obj'].Clone(folder=folder, name=vm_name, spec=clonespec)
         result = self.start_task(
             task,
             task_tag='Cloning',
@@ -476,16 +447,20 @@ class VMware(object):
             return
 
         # Change networking
-        vm = self.get_object(vim.VirtualMachine, vm_name)
+        vm_props = (
+            'runtime.host',
+            'config.hardware.device',
+        )
+        vm_obj = self.get_obj(obj_names=(vm_name,), prop_names=vm_props)
         vmconf = vim.vm.ConfigSpec()
 
         # Get right network
-        network = self.get_portgroup(vlan, vm.runtime.host.name)
+        network = self.get_portgroup(vlan, vm_obj['runtime.host'].name)
 
         # Modify NIC card
         nic = vim.vm.device.VirtualDeviceSpec()
         nic.operation = vim.vm.device.VirtualDeviceSpec.Operation.edit
-        for device in vm.config.hardware.device:
+        for device in vm_obj['config.hardware.device']:
             if isinstance(device, vim.vm.device.VirtualEthernetCard):
                 nic.device = device
                 break
@@ -501,7 +476,7 @@ class VMware(object):
         vmconf.deviceChange = [nic, ]
 
         # Start task
-        task = vm.ReconfigVM_Task(vmconf)
+        task = vm_obj['obj'].ReconfigVM_Task(vmconf)
         self.start_task(
             task,
             task_tag='Networking',
