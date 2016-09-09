@@ -1,9 +1,9 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 from kaslan import __version__
 
 setup(
     name='kaslan',
-    packages=['kaslan', ],
+    packages=find_packages(),
     version=__version__,
     install_requires=[
         'PyYAML',
