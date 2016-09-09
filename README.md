@@ -6,8 +6,8 @@ pyVmomi based CLI for common VMware tasks.
 * Python 2.7+
 * setuptools 0.9.8+
 
-### Setup
-    python setup.py install
+### Install
+    sudo python setup.py install
 
 Use `kaslan.yaml` for configuration. Search preference:
 
